@@ -29,6 +29,12 @@ A mobile app that trains you to type Japanese kana on the phone flick keyboard, 
 
 ---
 
+## AI Used
+
+**Claude · Kimi · ChatGPT**
+
+---
+
 ## Getting Started
 
 ```bash
