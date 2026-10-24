@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ARROWS, DIRS, LAYOUT, ROWS, Row, toKatakana } from '../kana';
 import { Screen } from '../Screen';
-import { Stats, loadStats, saveStats, updateStat, weakness } from '../storage';
+import {
+  Stats, countBad, loadRecent, loadStats, saveRecent, saveStats, updateStat, weakness,
+} from '../storage';
 import { colors } from '../theme';
 
-const SESSION_LENGTH = 20;
-const MIN_FOR_WEAK = 5;
+const QUICK_LENGTH = 10;
+const FIX_ROUND = 20;
 const KEY_ASPECT = 1.15;
 
 type Script = 'hira' | 'kata';
@@ -31,19 +33,24 @@ function shuffle<T>(a: T[]): T[] {
   return b;
 }
 
-function buildSession(mode: string, stats: Stats): Item[] {
-  if (mode === 'weak') {
-    const seen = [...itemsFor('hira'), ...itemsFor('kata')].filter(
-      (i) => (stats[i.char]?.seen ?? 0) > 0
-    );
-    seen.sort((a, b) => weakness(stats[b.char]) - weakness(stats[a.char]));
-    return shuffle(seen.slice(0, SESSION_LENGTH));
+function buildSession(mode: string, count: string, stats: Stats, recent: string[]): Item[] {
+  // Poprawianie błędów: znaki z listy błędów (oba pisma razem)
+  if (mode === 'fix') {
+    const bad = [...itemsFor('hira'), ...itemsFor('kata')].filter((i) => stats[i.char]?.bad);
+    return shuffle(bad).slice(0, FIX_ROUND);
   }
 
-  // Losowanie bez powtórzeń, słabsze znaki mają większą szansę
-  const pool = itemsFor(mode === 'kata' ? 'kata' : 'hira');
+  const all = itemsFor(mode === 'kata' ? 'kata' : 'hira');
+
+  // Wszystkie znaki, za każdym razem w nowej kolejności
+  if (count === 'all') return shuffle(all);
+
+  // 10 losowych: pomijamy znaki z ostatnich rund, słabsze mają większą szansę
+  let pool = all.filter((i) => !recent.includes(i.char));
+  if (pool.length < QUICK_LENGTH) pool = [...all];
+
   const picked: Item[] = [];
-  while (picked.length < SESSION_LENGTH && pool.length > 0) {
+  while (picked.length < QUICK_LENGTH && pool.length > 0) {
     const total = pool.reduce((sum, i) => sum + weakness(stats[i.char]), 0);
     let r = Math.random() * total;
     let idx = 0;
@@ -148,9 +155,10 @@ function Key({
 }
 
 export default function Practice() {
-  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const { mode: modeParam, count: countParam } = useLocalSearchParams<{ mode?: string; count?: string }>();
   const mode = modeParam ?? 'hira';
-  const label = mode === 'weak' ? 'Review weakest' : mode === 'kata' ? 'Katakana' : 'Hiragana';
+  const count = countParam ?? '10';
+  const label = mode === 'fix' ? 'Review mistakes' : mode === 'kata' ? 'Katakana' : 'Hiragana';
 
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -161,6 +169,7 @@ export default function Practice() {
   const boardLeft = (width - boardWidth) / 2;
 
   const statsRef = useRef<Stats>({});
+  const recentRef = useRef<Record<string, string[]>>({});
   const startRef = useRef(Date.now());
   const wrongRef = useRef(false);
 
@@ -173,7 +182,16 @@ export default function Practice() {
   const [pressed, setPressed] = useState<{ rowId: string; dir: number } | null>(null);
 
   function start() {
-    setSession(buildSession(mode, statsRef.current));
+    const recent = recentRef.current[mode] ?? [];
+    const items = buildSession(mode, count, statsRef.current, recent);
+
+    // Zapamiętaj znaki z tej rundy, żeby w następnej się nie powtarzały
+    if ((mode === 'hira' || mode === 'kata') && count !== 'all') {
+      recentRef.current[mode] = [...recent, ...items.map((i) => i.char)].slice(-2 * QUICK_LENGTH);
+      saveRecent(recentRef.current);
+    }
+
+    setSession(items);
     setIndex(0);
     setResults([]);
     setStreak(0);
@@ -181,11 +199,12 @@ export default function Practice() {
   }
 
   useEffect(() => {
-    loadStats().then((st) => {
+    Promise.all([loadStats(), loadRecent()]).then(([st, rc]) => {
       statsRef.current = st;
+      recentRef.current = rc;
       start();
     });
-  }, [mode]);
+  }, [mode, count]);
 
   // Nowy znak = start stopera
   useEffect(() => {
@@ -210,6 +229,12 @@ export default function Practice() {
       const wrong = wrongRef.current;
       updateStat(statsRef.current, item.char, wrong, ms);
       saveStats(statsRef.current);
+
+      // W trybie poprawiania znak wraca na koniec, dopóki nie zniknie z listy błędów
+      if (mode === 'fix' && statsRef.current[item.char]?.bad) {
+        setSession((prev) => (prev ? [...prev, item] : prev));
+      }
+
       setResults((prev) => [...prev, { char: item.char, wrong, ms: Math.min(ms, 10000) }]);
       if (!wrong) setStreak((n) => n + 1);
       setFeedback('ok');
@@ -227,16 +252,13 @@ export default function Practice() {
   // Ładowanie
   if (!session) return <Screen style={s.screen} />;
 
-  // Za mało danych na "Review weakest"
-  if (mode === 'weak' && session.length < MIN_FOR_WEAK) {
+  // Brak błędów do poprawienia
+  if (mode === 'fix' && session.length === 0) {
     return (
       <Screen style={s.screen}>
         <View style={s.summary}>
-          <Text style={s.sumTitle}>Not enough data yet</Text>
-          <Text style={s.sumLine}>
-            Practice Hiragana or Katakana for a round or two first. Then Shinkai can tell which
-            characters need the most attention.
-          </Text>
+          <Text style={s.sumTitle}>Nothing to fix</Text>
+          <Text style={s.sumLine}>You have no open mistakes right now.</Text>
           <Pressable style={s.sumBtn} onPress={() => router.back()}>
             <Text style={s.sumBtnText}>Back to menu</Text>
           </Pressable>
@@ -247,6 +269,34 @@ export default function Practice() {
 
   // Koniec rundy
   if (index >= session.length) {
+    const badLeft = countBad(statsRef.current);
+
+    if (mode === 'fix') {
+      return (
+        <Screen style={s.screen}>
+          <View style={s.summary}>
+            <Text style={s.sumTitle}>{badLeft === 0 ? 'All mistakes fixed' : 'Round complete'}</Text>
+            <Text style={s.sumLine}>
+              {badLeft === 0
+                ? 'Nothing left to fix. Nice work.'
+                : `${badLeft} ${badLeft === 1 ? 'character' : 'characters'} still to fix`}
+            </Text>
+            {badLeft > 0 && (
+              <Pressable style={s.sumBtn} onPress={start}>
+                <Text style={s.sumBtnText}>Keep fixing</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={[s.sumBtn, badLeft > 0 && s.sumBtnAlt]}
+              onPress={() => router.back()}
+            >
+              <Text style={[s.sumBtnText, badLeft > 0 && s.sumBtnTextAlt]}>Menu</Text>
+            </Pressable>
+          </View>
+        </Screen>
+      );
+    }
+
     const firstTry = results.filter((r) => !r.wrong).length;
     const avg = results.length ? results.reduce((sum, r) => sum + r.ms, 0) / results.length / 1000 : 0;
     const hardest = [...results]
@@ -278,12 +328,12 @@ export default function Practice() {
           <Pressable style={s.sumBtn} onPress={start}>
             <Text style={s.sumBtnText}>Practice again</Text>
           </Pressable>
-          {mode !== 'weak' && (
+          {badLeft > 0 && (
             <Pressable
               style={[s.sumBtn, s.sumBtnAlt]}
-              onPress={() => router.replace({ pathname: '/practice', params: { mode: 'weak' } } as any)}
+              onPress={() => router.replace('/mistakes' as any)}
             >
-              <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Review weakest</Text>
+              <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Review mistakes ({badLeft})</Text>
             </Pressable>
           )}
           <Pressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
@@ -296,6 +346,7 @@ export default function Practice() {
 
   const item = session[index];
   const show = (t: string) => (item.script === 'kata' ? toKatakana(t) : t);
+  const progress = mode === 'fix' ? `${session.length - index} left` : `${index + 1} / ${session.length}`;
 
   return (
     <Screen style={s.screen}>
@@ -303,9 +354,7 @@ export default function Practice() {
         <Pressable onPress={() => router.back()}>
           <Text style={s.link}>← Menu</Text>
         </Pressable>
-        <Text style={s.stat}>
-          {index + 1} / {session.length}
-        </Text>
+        <Text style={s.stat}>{progress}</Text>
         <View style={{ width: 70 }} />
       </View>
 

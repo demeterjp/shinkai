@@ -18,11 +18,11 @@ const PAGES = [
     body:
       'This keyboard is built into the app. Tap a key to type its main character. To type the others, swipe from the key in the direction where the character sits: left, up, right or down. The small hints on the keys show you where. Switch them off when you want to test your memory.',
   },
-  {
-    icon: '20',
+    {
+    icon: '10',
     title: 'Ways to practice',
     body:
-      'Hiragana and Katakana give you rounds of 20 characters. Review weakest is a separate mode that focuses only on the characters you find hardest. Characters you struggled with in earlier rounds come back more often.',
+      'Pick Hiragana or Katakana, then choose a quick round of 10 random characters or all of them in a new order. Review mistakes lists the characters you got wrong and lets you fix them. Type a character correctly twice in a row and it leaves the list.',
   },
   {
     icon: '✓',

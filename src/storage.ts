@@ -1,11 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // seen = ile razy znak się pojawił, err = ostatnie błędy (0 do 1), ms = typowy czas odpowiedzi
-export type Stat = { seen: number; err: number; ms: number };
+// bad = znak jest na liście błędów, fix = ile razy z rzędu wpisano go poprawnie od ostatniego błędu
+export type Stat = { seen: number; err: number; ms: number; bad?: boolean; fix?: number };
 export type Stats = Record<string, Stat>;
 
 const STATS_KEY = 'shinkai.stats.v1';
 const ONBOARD_KEY = 'shinkai.onboarded.v1';
+const RECENT_KEY = 'shinkai.recent.v1';
+
+// Ile razy z rzędu trzeba wpisać znak poprawnie, żeby zniknął z listy błędów
+export const FIX_STREAK = 2;
 
 export async function loadStats(): Promise<Stats> {
   try {
@@ -19,6 +24,22 @@ export async function loadStats(): Promise<Stats> {
 export async function saveStats(stats: Stats) {
   try {
     await AsyncStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  } catch {}
+}
+
+// Znaki z ostatnich rund "10 losowych" (osobno dla hiragany i katakany)
+export async function loadRecent(): Promise<Record<string, string[]>> {
+  try {
+    const raw = await AsyncStorage.getItem(RECENT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function saveRecent(recent: Record<string, string[]>) {
+  try {
+    await AsyncStorage.setItem(RECENT_KEY, JSON.stringify(recent));
   } catch {}
 }
 
@@ -36,14 +57,33 @@ export async function setOnboarded() {
   } catch {}
 }
 
+export function countBad(stats: Stats): number {
+  return Object.values(stats).filter((s) => s.bad).length;
+}
+
 // Nowsze odpowiedzi liczą się bardziej, więc znak, który opanujesz, szybko przestaje być "słaby"
 export function updateStat(stats: Stats, key: string, wrong: boolean, ms: number) {
   const t = Math.min(ms, 10000);
   const prev = stats[key];
-  stats[key] =
+  const base =
     prev && prev.seen > 0
       ? { seen: prev.seen + 1, err: prev.err * 0.7 + (wrong ? 0.3 : 0), ms: prev.ms * 0.7 + t * 0.3 }
       : { seen: 1, err: wrong ? 1 : 0, ms: t };
+
+  // Lista błędów: pomyłka dodaje znak, poprawne odpowiedzi z rzędu usuwają go
+  let bad = prev?.bad ?? false;
+  let fix = prev?.fix ?? 0;
+  if (wrong) {
+    bad = true;
+    fix = 0;
+  } else if (bad) {
+    fix += 1;
+    if (fix >= FIX_STREAK) {
+      bad = false;
+      fix = 0;
+    }
+  }
+  stats[key] = { ...base, bad, fix };
 }
 
 // Im wyższa liczba, tym częściej znak wraca. Nieznane znaki mają średnio wysoką wagę.
