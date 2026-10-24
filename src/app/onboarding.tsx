@@ -10,7 +10,7 @@ const PAGES = [
     icon: 'あ',
     title: 'Make typing kana automatic',
     body:
-      'Shinkai trains you to type Japanese on the flick keyboard used on phones. Short rounds and lots of repetition, until your thumb knows where every character is without you having to think about it.',
+      'Shinkai helps you get used to typing Japanese on the flick keyboard used on phones. Practice the keys again and again, until your thumb knows where every character is without you having to think about it.',
   },
   {
     icon: '← ↑ →',
@@ -22,13 +22,7 @@ const PAGES = [
     icon: '10',
     title: 'Ways to practice',
     body:
-      'Pick Hiragana or Katakana, then choose a quick round of 10 random characters or all of them in a new order. Review mistakes lists the characters you got wrong and lets you fix them. Type a character correctly twice in a row and it leaves the list.',
-  },
-  {
-    icon: '✓',
-    title: 'Practice that adapts',
-    body:
-      'Shinkai notices which characters take you the longest and which ones trip you up, so it can give those more practice and show the ones you already know well less often. This is only used to shape your practice. It stays on your phone and is never sent anywhere.',
+      'Pick Hiragana or Katakana, then choose a round of 10 random characters or all of them in a new order. Review mistakes gathers the characters you got wrong in one place, so you can practice them again. Type a character correctly twice in a row and it leaves the list.',
   },
 ];
 

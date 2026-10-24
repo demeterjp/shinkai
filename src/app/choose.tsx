@@ -27,7 +27,7 @@ export default function Choose() {
 
         <Pressable style={s.btn} onPress={() => go('10')}>
           <Text style={s.btnTitle}>10 random characters</Text>
-          <Text style={s.btnSub}>A quick round with different characters each time</Text>
+          <Text style={s.btnSub}>10 characters, different ones each time</Text>
         </Pressable>
 
         <Pressable style={s.btn} onPress={() => go('all')}>
