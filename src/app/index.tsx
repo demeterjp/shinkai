@@ -1,98 +1,66 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text } from 'react-native';
+import { Screen } from '../Screen';
+import { isOnboarded } from '../storage';
+import { colors } from '../theme';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function Menu() {
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+  // Pierwsze uruchomienie: najpierw tutorial
+  useEffect(() => {
+    isOnboarded().then((done) => {
+      if (done) setReady(true);
+      else router.replace('/onboarding' as any);
+    });
+  }, []);
+
+  const go = (mode: 'hira' | 'kata' | 'weak') =>
+    router.push({ pathname: '/practice', params: { mode } } as any);
+
+  if (!ready) return <Screen style={s.screen} />;
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <Screen style={s.screen}>
+      <Text style={s.title}>Shinkai</Text>
+      <Text style={s.sub}>What do you want to practice?</Text>
+
+      <Pressable style={s.btn} onPress={() => go('hira')}>
+        <Text style={s.kana}>あ</Text>
+        <Text style={s.label}>Hiragana</Text>
+      </Pressable>
+
+      <Pressable style={s.btn} onPress={() => go('kata')}>
+        <Text style={s.kana}>ア</Text>
+        <Text style={s.label}>Katakana</Text>
+      </Pressable>
+
+      <Pressable style={[s.btn, s.btnWeak]} onPress={() => go('weak')}>
+        <Text style={s.weakTitle}>Review weakest</Text>
+        <Text style={s.weakSub}>Characters that need the most attention</Text>
+      </Pressable>
+
+      <Pressable onPress={() => router.push('/onboarding' as any)}>
+        <Text style={s.link}>How it works</Text>
+      </Pressable>
+    </Screen>
   );
 }
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+const s = StyleSheet.create({
+  screen: { alignItems: 'center', justifyContent: 'center', padding: 24 },
+  title: { color: colors.text, fontSize: 40, fontWeight: '700' },
+  sub: { color: colors.muted, fontSize: 16, marginBottom: 28 },
+  btn: {
+    width: '100%', maxWidth: 420, backgroundColor: colors.key, borderRadius: 20,
+    paddingVertical: 18, marginBottom: 14, alignItems: 'center',
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  btnWeak: { paddingVertical: 20 },
+  kana: { color: colors.text, fontSize: 48 },
+  label: { color: colors.textSoft, fontSize: 18, marginTop: 2 },
+  weakTitle: { color: colors.text, fontSize: 20, fontWeight: '600' },
+  weakSub: { color: colors.muted, fontSize: 14, marginTop: 4 },
+  link: { color: colors.accent, fontSize: 15, marginTop: 12, padding: 8 },
 });

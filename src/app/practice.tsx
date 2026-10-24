@@ -1,0 +1,411 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ARROWS, DIRS, LAYOUT, ROWS, Row, toKatakana } from '../kana';
+import { Screen } from '../Screen';
+import { Stats, loadStats, saveStats, updateStat, weakness } from '../storage';
+import { colors } from '../theme';
+
+const SESSION_LENGTH = 20;
+const MIN_FOR_WEAK = 5;
+const KEY_ASPECT = 1.15;
+
+type Script = 'hira' | 'kata';
+type Item = { rowId: string; dir: number; script: Script; char: string };
+type Result = { char: string; wrong: boolean; ms: number };
+
+function itemsFor(script: Script): Item[] {
+  return ROWS.flatMap((r) =>
+    r.keys.flatMap((k, dir) =>
+      k ? [{ rowId: r.id, dir, script, char: script === 'kata' ? toKatakana(k) : k }] : []
+    )
+  );
+}
+
+function shuffle<T>(a: T[]): T[] {
+  const b = [...a];
+  for (let i = b.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [b[i], b[j]] = [b[j], b[i]];
+  }
+  return b;
+}
+
+function buildSession(mode: string, stats: Stats): Item[] {
+  if (mode === 'weak') {
+    const seen = [...itemsFor('hira'), ...itemsFor('kata')].filter(
+      (i) => (stats[i.char]?.seen ?? 0) > 0
+    );
+    seen.sort((a, b) => weakness(stats[b.char]) - weakness(stats[a.char]));
+    return shuffle(seen.slice(0, SESSION_LENGTH));
+  }
+
+  // Losowanie bez powtórzeń, słabsze znaki mają większą szansę
+  const pool = itemsFor(mode === 'kata' ? 'kata' : 'hira');
+  const picked: Item[] = [];
+  while (picked.length < SESSION_LENGTH && pool.length > 0) {
+    const total = pool.reduce((sum, i) => sum + weakness(stats[i.char]), 0);
+    let r = Math.random() * total;
+    let idx = 0;
+    for (; idx < pool.length - 1; idx++) {
+      r -= weakness(stats[pool[idx].char]);
+      if (r <= 0) break;
+    }
+    picked.push(pool.splice(idx, 1)[0]);
+  }
+  return shuffle(picked);
+}
+
+// 0 = dotyk, 1 = lewo, 2 = góra, 3 = prawo, 4 = dół
+function direction(dx: number, dy: number): number {
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 25) return 0;
+  if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? 1 : 3;
+  return dy < 0 ? 2 : 4;
+}
+
+type KeyProps = {
+  row: Row;
+  show: (s: string) => string;
+  hints: boolean;
+  highlight: boolean;
+  pressedDir: number | null;
+  keyW: number;
+  keyH: number;
+  centerX: number; // środek klawisza na ekranie
+  screenW: number;
+  onPress: (rowId: string, dir: number | null) => void;
+  onInput: (rowId: string, dir: number) => void;
+};
+
+function Key({
+  row, show, hints, highlight, pressedDir, keyW, keyH, centerX, screenW, onPress, onInput,
+}: KeyProps) {
+  const handlers = useRef({ onPress, onInput });
+  handlers.current = { onPress, onInput };
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => handlers.current.onPress(row.id, 0),
+      onPanResponderMove: (_, g) => handlers.current.onPress(row.id, direction(g.dx, g.dy)),
+      onPanResponderRelease: (_, g) => {
+        handlers.current.onPress(row.id, null);
+        handlers.current.onInput(row.id, direction(g.dx, g.dy));
+      },
+      onPanResponderTerminate: () => handlers.current.onPress(row.id, null),
+    })
+  ).current;
+
+  const k = row.keys;
+  const active = pressedDir !== null;
+
+  // Mały krzyżyk: pola są o połowę mniejsze od klawisza
+  const cw = keyW * 0.5;
+  const ch = keyH * 0.5;
+  const gap = 4;
+
+  // Przy krawędziach ekranu przesuń krzyżyk do środka
+  let shift = 0;
+  const leftEdge = centerX - cw / 2 - cw - gap;
+  const rightEdge = centerX + cw / 2 + cw + gap;
+  if (leftEdge < 6) shift = 6 - leftEdge;
+  else if (rightEdge > screenW - 6) shift = screenW - 6 - rightEdge;
+
+  const cx = keyW / 2 - cw / 2 + shift;
+  const cy = keyH / 2 - ch / 2;
+  const pos = [
+    { left: cx, top: cy },
+    { left: cx - cw - gap, top: cy },
+    { left: cx, top: cy - ch - gap },
+    { left: cx + cw + gap, top: cy },
+    { left: cx, top: cy + ch + gap },
+  ];
+
+  const showHints = hints && !active;
+
+  return (
+    <View {...pan.panHandlers} style={[s.key, highlight && s.keyHi, active && s.keyActive]}>
+      <Text style={s.keyMain}>{show(k[0]!)}</Text>
+      {showHints && k[1] ? <Text style={[s.hint, s.hl]}>{show(k[1])}</Text> : null}
+      {showHints && k[2] ? <Text style={[s.hint, s.hu]}>{show(k[2])}</Text> : null}
+      {showHints && k[3] ? <Text style={[s.hint, s.hr]}>{show(k[3])}</Text> : null}
+      {showHints && k[4] ? <Text style={[s.hint, s.hd]}>{show(k[4])}</Text> : null}
+
+      {active &&
+        k.map((c, d) =>
+          c ? (
+            <View
+              key={d}
+              pointerEvents="none"
+              style={[s.cell, { width: cw, height: ch }, pos[d], pressedDir === d && s.cellOn]}
+            >
+              <Text style={[s.cellText, pressedDir === d && s.cellTextOn]}>{show(c)}</Text>
+            </View>
+          ) : null
+        )}
+    </View>
+  );
+}
+
+export default function Practice() {
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const mode = modeParam ?? 'hira';
+  const label = mode === 'weak' ? 'Review weakest' : mode === 'kata' ? 'Katakana' : 'Hiragana';
+
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const boardWidth = Math.min(width - 24, 520);
+  const tileW = boardWidth / 3;
+  const keyW = tileW - 8;
+  const keyH = keyW / KEY_ASPECT;
+  const boardLeft = (width - boardWidth) / 2;
+
+  const statsRef = useRef<Stats>({});
+  const startRef = useRef(Date.now());
+  const wrongRef = useRef(false);
+
+  const [session, setSession] = useState<Item[] | null>(null);
+  const [index, setIndex] = useState(0);
+  const [results, setResults] = useState<Result[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [hints, setHints] = useState(true);
+  const [feedback, setFeedback] = useState<'ok' | 'bad' | null>(null);
+  const [pressed, setPressed] = useState<{ rowId: string; dir: number } | null>(null);
+
+  function start() {
+    setSession(buildSession(mode, statsRef.current));
+    setIndex(0);
+    setResults([]);
+    setStreak(0);
+    setFeedback(null);
+  }
+
+  useEffect(() => {
+    loadStats().then((st) => {
+      statsRef.current = st;
+      start();
+    });
+  }, [mode]);
+
+  // Nowy znak = start stopera
+  useEffect(() => {
+    startRef.current = Date.now();
+    wrongRef.current = false;
+  }, [session, index]);
+
+  function onPress(rowId: string, dir: number | null) {
+    setPressed((prev) => {
+      if (dir === null) return null;
+      return prev && prev.rowId === rowId && prev.dir === dir ? prev : { rowId, dir };
+    });
+  }
+
+  function onInput(rowId: string, dir: number) {
+    if (!session || feedback === 'ok') return;
+    const item = session[index];
+    if (!item) return;
+
+    if (rowId === item.rowId && dir === item.dir) {
+      const ms = Date.now() - startRef.current;
+      const wrong = wrongRef.current;
+      updateStat(statsRef.current, item.char, wrong, ms);
+      saveStats(statsRef.current);
+      setResults((prev) => [...prev, { char: item.char, wrong, ms: Math.min(ms, 10000) }]);
+      if (!wrong) setStreak((n) => n + 1);
+      setFeedback('ok');
+      setTimeout(() => {
+        setFeedback(null);
+        setIndex((i) => i + 1);
+      }, 250);
+    } else {
+      wrongRef.current = true;
+      setStreak(0);
+      setFeedback('bad');
+    }
+  }
+
+  // Ładowanie
+  if (!session) return <Screen style={s.screen} />;
+
+  // Za mało danych na "Review weakest"
+  if (mode === 'weak' && session.length < MIN_FOR_WEAK) {
+    return (
+      <Screen style={s.screen}>
+        <View style={s.summary}>
+          <Text style={s.sumTitle}>Not enough data yet</Text>
+          <Text style={s.sumLine}>
+            Practice Hiragana or Katakana for a round or two first. Then Shinkai can tell which
+            characters need the most attention.
+          </Text>
+          <Pressable style={s.sumBtn} onPress={() => router.back()}>
+            <Text style={s.sumBtnText}>Back to menu</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
+
+  // Koniec rundy
+  if (index >= session.length) {
+    const firstTry = results.filter((r) => !r.wrong).length;
+    const avg = results.length ? results.reduce((sum, r) => sum + r.ms, 0) / results.length / 1000 : 0;
+    const hardest = [...results]
+      .sort((a, b) => Number(b.wrong) - Number(a.wrong) || b.ms - a.ms)
+      .slice(0, 3);
+
+    return (
+      <Screen style={s.screen}>
+        <View style={s.summary}>
+          <Text style={s.sumTitle}>Round complete</Text>
+          <Text style={s.sumLine}>
+            {firstTry} / {results.length} correct on the first try
+          </Text>
+          <Text style={s.sumLine}>Average time: {avg.toFixed(1)} s</Text>
+
+          {hardest.length > 0 && (
+            <>
+              <Text style={s.sumHead}>Needs the most attention</Text>
+              <View style={s.sumRow}>
+                {hardest.map((r) => (
+                  <Text key={r.char} style={s.sumChar}>
+                    {r.char}
+                  </Text>
+                ))}
+              </View>
+            </>
+          )}
+
+          <Pressable style={s.sumBtn} onPress={start}>
+            <Text style={s.sumBtnText}>Practice again</Text>
+          </Pressable>
+          {mode !== 'weak' && (
+            <Pressable
+              style={[s.sumBtn, s.sumBtnAlt]}
+              onPress={() => router.replace({ pathname: '/practice', params: { mode: 'weak' } } as any)}
+            >
+              <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Review weakest</Text>
+            </Pressable>
+          )}
+          <Pressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
+            <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Menu</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
+
+  const item = session[index];
+  const show = (t: string) => (item.script === 'kata' ? toKatakana(t) : t);
+
+  return (
+    <Screen style={s.screen}>
+      <View style={s.top}>
+        <Pressable onPress={() => router.back()}>
+          <Text style={s.link}>← Menu</Text>
+        </Pressable>
+        <Text style={s.stat}>
+          {index + 1} / {session.length}
+        </Text>
+        <View style={{ width: 70 }} />
+      </View>
+
+      <View style={s.center}>
+        <Text style={s.label}>
+          {label} · Streak {streak}
+        </Text>
+        <Text style={[s.target, feedback === 'ok' && s.ok, feedback === 'bad' && s.bad]}>
+          {item.char}
+        </Text>
+        <Text style={s.msg}>
+          {feedback === 'bad' ? `Here: ${DIRS[item.dir]} ${ARROWS[item.dir]}` : ' '}
+        </Text>
+        <Pressable onPress={() => setHints(!hints)}>
+          <Text style={s.link}>Hints: {hints ? 'on' : 'off'}</Text>
+        </Pressable>
+      </View>
+
+      <View style={[s.board, { width: boardWidth }]}>
+        {LAYOUT.map((line, i) => {
+          const lineActive = line.some((id) => id !== null && id === pressed?.rowId);
+          return (
+            <View key={i} style={[s.line, lineActive && s.lineActive]}>
+              {line.map((id, j) => {
+                const row = ROWS.find((r) => r.id === id);
+                return row ? (
+                  <Key
+                    key={row.id}
+                    row={row}
+                    show={show}
+                    hints={hints}
+                    highlight={feedback === 'bad' && row.id === item.rowId}
+                    pressedDir={pressed && pressed.rowId === row.id ? pressed.dir : null}
+                    keyW={keyW}
+                    keyH={keyH}
+                    centerX={boardLeft + (j + 0.5) * tileW}
+                    screenW={width}
+                    onPress={onPress}
+                    onInput={onInput}
+                  />
+                ) : (
+                  <View key={j} style={s.empty} />
+                );
+              })}
+            </View>
+          );
+        })}
+      </View>
+    </Screen>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { alignItems: 'center' },
+  top: {
+    width: '100%', flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8,
+  },
+  link: { color: colors.accent, fontSize: 15, padding: 6 },
+  stat: { color: colors.textSoft, fontSize: 16 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  label: { color: colors.muted, fontSize: 14, marginBottom: 4 },
+  target: { color: colors.text, fontSize: 120 },
+  ok: { color: colors.ok },
+  bad: { color: colors.bad },
+  msg: { color: colors.warn, fontSize: 18, marginVertical: 8 },
+  board: { paddingBottom: 12 },
+  line: { flexDirection: 'row', zIndex: 0 },
+  lineActive: { zIndex: 10 },
+  key: {
+    flex: 1, aspectRatio: KEY_ASPECT, margin: 4, borderRadius: 14,
+    backgroundColor: colors.key, alignItems: 'center', justifyContent: 'center',
+  },
+  keyActive: { zIndex: 10 },
+  keyHi: { borderWidth: 3, borderColor: colors.warn },
+  keyMain: { color: colors.text, fontSize: 34 },
+  empty: { flex: 1, margin: 4 },
+  hint: { position: 'absolute', color: colors.keyHint, fontSize: 13 },
+  hl: { left: 8, top: '50%', marginTop: -9 },
+  hu: { top: 4, left: 0, right: 0, textAlign: 'center' },
+  hr: { right: 8, top: '50%', marginTop: -9 },
+  hd: { bottom: 4, left: 0, right: 0, textAlign: 'center' },
+  cell: {
+    position: 'absolute', backgroundColor: colors.cell, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cellOn: { backgroundColor: colors.cellOn },
+  cellText: { color: colors.text, fontSize: 26 },
+  cellTextOn: { color: colors.onAccent },
+  summary: { flex: 1, width: '100%', maxWidth: 420, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  sumTitle: { color: colors.text, fontSize: 30, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+  sumLine: { color: colors.textSoft, fontSize: 17, marginBottom: 6, textAlign: 'center' },
+  sumHead: { color: colors.muted, fontSize: 14, marginTop: 20 },
+  sumRow: { flexDirection: 'row', marginTop: 6, marginBottom: 20 },
+  sumChar: { color: colors.text, fontSize: 52, marginHorizontal: 12 },
+  sumBtn: {
+    width: '100%', backgroundColor: colors.accent, borderRadius: 16,
+    paddingVertical: 15, alignItems: 'center', marginTop: 10,
+  },
+  sumBtnAlt: { backgroundColor: colors.key },
+  sumBtnText: { color: colors.onAccent, fontSize: 17, fontWeight: '600' },
+  sumBtnTextAlt: { color: colors.text },
+});
