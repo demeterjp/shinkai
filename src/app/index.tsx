@@ -1,7 +1,9 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Flame } from '../Flame';
 import { Screen } from '../Screen';
+import { StreakInfo, getStreak } from '../streak';
 import { countBad, isOnboarded, loadStats } from '../storage';
 import { colors } from '../theme';
 
@@ -12,6 +14,7 @@ export default function Menu() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [badCount, setBadCount] = useState(0);
+  const [streak, setStreak] = useState<StreakInfo>({ count: 0, best: 0, doneToday: false });
 
   // Pierwsze uruchomienie: najpierw tutorial
   useEffect(() => {
@@ -25,6 +28,7 @@ export default function Menu() {
   useFocusEffect(
     useCallback(() => {
       loadStats().then((st) => setBadCount(countBad(st)));
+      getStreak().then(setStreak);
     }, [])
   );
 
@@ -35,6 +39,13 @@ export default function Menu() {
 
   return (
     <Screen style={s.screen}>
+      {streak.count > 0 && (
+        <View style={s.streak}>
+          <Flame size={26} active={streak.doneToday} />
+          <Text style={[s.streakNum, !streak.doneToday && s.streakDim]}>{streak.count}</Text>
+        </View>
+      )}
+
       <Text style={s.kanji}>{APP_KANJI}</Text>
       <Text style={s.title}>Shinkai</Text>
       <Text style={s.sub}>What do you want to practice?</Text>
@@ -63,9 +74,14 @@ export default function Menu() {
         </Text>
       </Pressable>
 
-      <Pressable onPress={() => router.push('/onboarding' as any)}>
-        <Text style={s.link}>How it works</Text>
-      </Pressable>
+      <View style={s.links}>
+        <Pressable onPress={() => router.push('/onboarding' as any)}>
+          <Text style={s.link}>How it works</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push('/settings' as any)}>
+          <Text style={s.link}>Settings</Text>
+        </Pressable>
+      </View>
     </Screen>
   );
 }
@@ -87,5 +103,9 @@ const s = StyleSheet.create({
   label: { color: colors.textSoft, fontSize: 18, marginTop: 2 },
   weakTitle: { color: colors.text, fontSize: 20, fontWeight: '600' },
   weakSub: { color: colors.muted, fontSize: 14, marginTop: 4 },
+  streak: { position: 'absolute', top: 8, right: 12, flexDirection: 'row', alignItems: 'center' },
+  streakNum: { color: colors.warn, fontSize: 20, fontWeight: '700', marginLeft: -6 },
+  streakDim: { color: colors.muted },
+  links: { flexDirection: 'row', gap: 24 },
   link: { color: colors.accent, fontSize: 15, marginTop: 8, padding: 8 },
 });

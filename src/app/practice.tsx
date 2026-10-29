@@ -1,11 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Flame } from '../Flame';
+import * as feel from '../haptics';
 import { ARROWS, DIRS, LAYOUT, ROWS, Row, toKatakana } from '../kana';
 import { Screen } from '../Screen';
+import { loadSettings } from '../settings';
 import {
   Stats, countBad, loadRecent, loadStats, saveRecent, saveStats, updateStat, weakness,
 } from '../storage';
+import { recordPractice } from '../streak';
 import { colors } from '../theme';
 
 const QUICK_LENGTH = 10;
@@ -172,12 +176,16 @@ export default function Practice() {
   const recentRef = useRef<Record<string, string[]>>({});
   const startRef = useRef(Date.now());
   const wrongRef = useRef(false);
+  const hapticsRef = useRef(true);
+  const lastKeyRef = useRef('');
+  const recordedRef = useRef(false);
 
   const [session, setSession] = useState<Item[] | null>(null);
   const [index, setIndex] = useState(0);
   const [results, setResults] = useState<Result[]>([]);
   const [streak, setStreak] = useState(0);
   const [hints, setHints] = useState(true);
+  const [days, setDays] = useState<{ count: number; increased: boolean } | null>(null);
   const [feedback, setFeedback] = useState<'ok' | 'bad' | null>(null);
   const [pressed, setPressed] = useState<{ rowId: string; dir: number } | null>(null);
 
@@ -196,12 +204,16 @@ export default function Practice() {
     setResults([]);
     setStreak(0);
     setFeedback(null);
+    setDays(null);
+    recordedRef.current = false;
   }
 
   useEffect(() => {
-    Promise.all([loadStats(), loadRecent()]).then(([st, rc]) => {
+    Promise.all([loadStats(), loadRecent(), loadSettings()]).then(([st, rc, cfg]) => {
       statsRef.current = st;
       recentRef.current = rc;
+      hapticsRef.current = cfg.haptics;
+      setHints(cfg.hints);
       start();
     });
   }, [mode, count]);
@@ -212,7 +224,24 @@ export default function Practice() {
     wrongRef.current = false;
   }, [session, index]);
 
+  // Skończona runda = dzień ćwiczeń (seria dni)
+  useEffect(() => {
+    if (!session || session.length === 0 || index < session.length) return;
+    if (recordedRef.current) return;
+    recordedRef.current = true;
+    recordPractice().then((r) => setDays({ count: r.count, increased: r.increased }));
+  }, [session, index]);
+
   function onPress(rowId: string, dir: number | null) {
+    if (dir === null) {
+      lastKeyRef.current = '';
+    } else {
+      const k = `${rowId}:${dir}`;
+      if (k !== lastKeyRef.current) {
+        lastKeyRef.current = k;
+        feel.tick(hapticsRef.current);
+      }
+    }
     setPressed((prev) => {
       if (dir === null) return null;
       return prev && prev.rowId === rowId && prev.dir === dir ? prev : { rowId, dir };
@@ -237,6 +266,7 @@ export default function Practice() {
 
       setResults((prev) => [...prev, { char: item.char, wrong, ms: Math.min(ms, 10000) }]);
       if (!wrong) setStreak((n) => n + 1);
+      feel.good(hapticsRef.current);
       setFeedback('ok');
       setTimeout(() => {
         setFeedback(null);
@@ -245,12 +275,23 @@ export default function Practice() {
     } else {
       wrongRef.current = true;
       setStreak(0);
+      feel.bad(hapticsRef.current);
       setFeedback('bad');
     }
   }
 
   // Ładowanie
   if (!session) return <Screen style={s.screen} />;
+
+  const dayBadge = days ? (
+    <View style={s.dayBadge}>
+      <Flame size={44} pop={days.increased} />
+      <Text style={s.dayCount}>
+        {days.count} {days.count === 1 ? 'day' : 'days'} streak
+      </Text>
+      <Text style={s.dayNote}>{days.increased ? 'Streak extended!' : 'Keep it going tomorrow'}</Text>
+    </View>
+  ) : null;
 
   // Brak błędów do poprawienia
   if (mode === 'fix' && session.length === 0) {
@@ -275,6 +316,7 @@ export default function Practice() {
       return (
         <Screen style={s.screen}>
           <View style={s.summary}>
+            {dayBadge}
             <Text style={s.sumTitle}>{badLeft === 0 ? 'All mistakes fixed' : 'Round complete'}</Text>
             <Text style={s.sumLine}>
               {badLeft === 0
@@ -306,6 +348,7 @@ export default function Practice() {
     return (
       <Screen style={s.screen}>
         <View style={s.summary}>
+          {dayBadge}
           <Text style={s.sumTitle}>Round complete</Text>
           <Text style={s.sumLine}>
             {firstTry} / {results.length} correct on the first try
@@ -447,6 +490,9 @@ const s = StyleSheet.create({
   summary: { flex: 1, width: '100%', maxWidth: 420, justifyContent: 'center', alignItems: 'center', padding: 24 },
   sumTitle: { color: colors.text, fontSize: 30, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   sumLine: { color: colors.textSoft, fontSize: 17, marginBottom: 6, textAlign: 'center' },
+  dayBadge: { alignItems: 'center', marginBottom: 12 },
+  dayCount: { color: colors.warn, fontSize: 20, fontWeight: '700' },
+  dayNote: { color: colors.muted, fontSize: 14, marginTop: 2 },
   sumHead: { color: colors.muted, fontSize: 14, marginTop: 20 },
   sumRow: { flexDirection: 'row', marginTop: 6, marginBottom: 20 },
   sumChar: { color: colors.text, fontSize: 52, marginHorizontal: 12 },
