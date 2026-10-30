@@ -1,24 +1,24 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
-import { colors } from '../theme';
+import { Colors, useStyles } from '../theme';
 
 export default function Choose() {
+  const { s } = useStyles(makeStyles);
   const router = useRouter();
   const { script } = useLocalSearchParams<{ script?: string }>();
   const kata = script === 'kata';
   const mode = kata ? 'kata' : 'hira';
 
   // replace, żeby "← Menu" w ćwiczeniu wracało do menu, a nie do tego ekranu
-  const go = (count: '10' | 'all') =>
+  const go = (count: '10' | 'all' | 'ext') =>
     router.replace({ pathname: '/practice', params: { mode, count } } as any);
 
   return (
     <Screen style={s.screen}>
       <View style={s.top}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={s.link}>← Menu</Text>
-        </Pressable>
+        <BackButton onPress={() => router.back()} />
       </View>
 
       <View style={s.content}>
@@ -34,12 +34,17 @@ export default function Choose() {
           <Text style={s.btnTitle}>All 46 characters</Text>
           <Text style={s.btnSub}>Every character once, in a new random order</Text>
         </Pressable>
+
+        <Pressable style={s.btn} onPress={() => go('ext')}>
+          <Text style={s.btnTitle}>{kata ? 'ガ ッ ャ ー and more' : 'が っ ゃ ー and more'}</Text>
+          <Text style={s.btnSub}>Dakuten, small kana and ー: 10 random, typed with the 小゛゜ key</Text>
+        </Pressable>
       </View>
     </Screen>
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   screen: { alignItems: 'center' },
   top: { width: '100%', paddingHorizontal: 16, paddingVertical: 8 },
   link: { color: colors.accent, fontSize: 15, padding: 6 },

@@ -2,8 +2,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ARROWS, ROWS, toKatakana } from '../kana';
+import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
-import { colors } from '../theme';
+import { Colors, useStyles } from '../theme';
 
 // Zapis łaciński dla każdego rzędu: [dotyk, lewo, góra, prawo, dół]
 const ROMAJI: Record<string, (string | null)[]> = {
@@ -29,10 +30,8 @@ const NOTES: Record<string, string> = {
   ma: 'Nothing unusual here: ma, mi, mu, me, mo in the usual positions.',
   ya: 'This key has only three characters: ya, yu and yo. The left and right positions are empty.',
   ra: 'Nothing unusual here: ra, ri, ru, re, ro in the usual positions.',
-  wa: 'Three characters: わ (wa), を (wo) and ん (n). を is mostly used as a grammar particle, and ん is a standalone sound. That is the whole keyboard. Try a Hiragana round with hints on, then switch them off when you are ready.',
+  wa: 'Three characters: わ (wa), を (wo) and ん (n). を is mostly used as a grammar particle, and ん is a standalone sound. The next page shows the last piece: the 小゛゜ key.',
 };
-
-const WORDS = ['Tap', 'Swipe left', 'Swipe up', 'Swipe right', 'Swipe down'];
 
 type Cell = { main: string; sub: string } | null;
 
@@ -44,6 +43,7 @@ const GRID: (number | null)[][] = [
 ];
 
 function Cross({ cells, size }: { cells: Cell[]; size: number }) {
+  const { s } = useStyles(makeStyles);
   return (
     <View>
       {GRID.map((line, i) => (
@@ -67,33 +67,62 @@ function Cross({ cells, size }: { cells: Cell[]; size: number }) {
 }
 
 export default function Learn() {
+  const { s } = useStyles(makeStyles);
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [page, setPage] = useState(0);
   const [kata, setKata] = useState(false);
 
   const show = (t: string) => (kata ? toKatakana(t) : t);
-  const size = Math.min(100, (width - 48) / 3 - 6);
-  const total = ROWS.length + 1;
+  const size = Math.max(54, Math.min(96, (width - 48) / 3 - 6, (height - 430) / 3 - 6));
+  const total = ROWS.length + 2; // intro + 10 klawiszy + klawisz 小゛゜
   const last = page === total - 1;
 
-  const row = page > 0 ? ROWS[page - 1] : null;
+  const isMod = page === total - 1;
+  const row = page > 0 && !isMod ? ROWS[page - 1] : null;
   const rom = row ? ROMAJI[row.id] : [];
 
   return (
     <Screen style={s.screen}>
       <View style={s.top}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={s.link}>← Menu</Text>
-        </Pressable>
+        <BackButton onPress={() => router.back()} />
         <Text style={s.stat}>
           {page + 1} / {total}
         </Text>
-        <View style={{ width: 70 }} />
+        {page > 0 ? (
+          <Pressable onPress={() => setKata(!kata)} style={s.kataBtn}>
+            <Text style={s.link}>{kata ? 'ア → あ' : 'あ → ア'}</Text>
+          </Pressable>
+        ) : (
+          <View style={s.kataBtn} />
+        )}
       </View>
 
       <ScrollView style={s.scrollView} contentContainerStyle={s.scroll}>
-        {page === 0 || !row ? (
+        {isMod ? (
+          <>
+            <Text style={s.title}>The 小゛゜ key</Text>
+            <View style={s.modRow}>
+              {['は', 'ば', 'ぱ'].map((c, i) => (
+                <View key={c} style={s.modItem}>
+                  <View style={[s.cell, s.modCell, i === 0 && s.cellCenter]}>
+                    <Text style={[s.cellMain, { fontSize: 34 }]}>{show(c)}</Text>
+                  </View>
+                  {i < 2 && <Text style={s.modArrow}>→ 小゛゜</Text>}
+                </View>
+              ))}
+            </View>
+            <Text style={s.body}>
+              Dakuten (゛), handakuten (゜) and small kana are typed in two steps. Flick the base
+              character, then tap the 小゛゜ key until it changes: は, then once for ば, twice for ぱ.
+            </Text>
+            <Text style={s.body}>
+              Small kana work the same way: や then 小゛゜ gives ゃ, and つ then 小゛゜ gives っ. The long
+              mark ー is a plain flick right on the わ key. Practice all of these in the
+              "Dakuten, small kana" round.
+            </Text>
+          </>
+        ) : page === 0 || !row ? (
           <>
             <Text style={s.title}>One key, five characters</Text>
             <Cross
@@ -107,39 +136,22 @@ export default function Learn() {
               ]}
             />
             <Text style={s.body}>
-              The keyboard has 10 keys, one for each consonant: a, ka, sa, ta, na, ha, ma, ya, ra
-              and wa. Every key holds up to five characters with the same consonant. Tap for the
-              first one, then swipe in a direction for the others.
+              The keyboard has 10 keys, one per consonant. Each key holds up to five characters
+              with that consonant: tap for the first, swipe for the others.
             </Text>
             <Text style={s.body}>
-              The vowel always follows the same pattern: tap = a, left = i, up = u, right = e,
-              down = o. Learn this once and it works on every key. The next screens go through the
-              keys one by one.
+              The vowel pattern is always the same: tap = a, left = i, up = u, right = e, down = o.
+              Learn it once and it works on every key.
             </Text>
           </>
         ) : (
           <>
-            <Text style={s.sub}>
-              Key {page} of {ROWS.length}
-            </Text>
             <Text style={s.title}>{show(row.keys[0]!)} key</Text>
             <Cross
               size={size}
               cells={row.keys.map((c, d) => (c ? { main: show(c), sub: `${ARROWS[d]} ${rom[d]}` } : null))}
             />
-            <View style={s.list}>
-              {row.keys.map((c, d) =>
-                c ? (
-                  <Text key={d} style={s.listLine}>
-                    {WORDS[d]}: {show(c)} ({rom[d]})
-                  </Text>
-                ) : null
-              )}
-            </View>
             <Text style={s.body}>{NOTES[row.id]}</Text>
-            <Pressable onPress={() => setKata(!kata)}>
-              <Text style={s.link}>{kata ? 'Show hiragana' : 'Show katakana'}</Text>
-            </Pressable>
           </>
         )}
       </ScrollView>
@@ -160,7 +172,7 @@ export default function Learn() {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   screen: { alignItems: 'center' },
   top: {
     width: '100%', flexDirection: 'row', justifyContent: 'space-between',
@@ -171,10 +183,13 @@ const s = StyleSheet.create({
   scrollView: { flex: 1, width: '100%' },
   scroll: { alignItems: 'center', paddingHorizontal: 24, paddingBottom: 16 },
   sub: { color: colors.muted, fontSize: 14, marginTop: 8 },
-  title: { color: colors.text, fontSize: 28, fontWeight: '700', textAlign: 'center', marginVertical: 12 },
-  body: { color: colors.textSoft, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 480, marginTop: 14 },
-  list: { marginTop: 16, alignItems: 'center' },
-  listLine: { color: colors.text, fontSize: 16, lineHeight: 24 },
+  title: { color: colors.text, fontSize: 26, fontWeight: '700', textAlign: 'center', marginTop: 4, marginBottom: 10 },
+  body: { color: colors.textSoft, fontSize: 15, lineHeight: 21, textAlign: 'center', maxWidth: 480, marginTop: 12 },
+  modRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  modItem: { flexDirection: 'row', alignItems: 'center' },
+  modCell: { width: 64, height: 64 },
+  modArrow: { color: colors.muted, fontSize: 13, marginHorizontal: 8 },
+  kataBtn: { width: 70, alignItems: 'flex-end' },
   cell: { backgroundColor: colors.key, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cellCenter: { backgroundColor: colors.cell, borderWidth: 2, borderColor: colors.accent },
   cellEmpty: { borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.key },

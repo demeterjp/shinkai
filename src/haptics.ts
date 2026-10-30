@@ -1,23 +1,22 @@
 import * as Haptics from 'expo-haptics';
 
-// Każda funkcja jest bezpieczna: brak wibracji w telefonie nigdy nie psuje aplikacji.
-export function tick(enabled: boolean) {
-  if (!enabled) return;
+// Wszystko bezpieczne: brak wibracji w telefonie nigdy nie psuje aplikacji.
+// Celowo tylko najlżejsze bodźce, żeby nic nie "waliło".
+function run(fn: () => Promise<void>) {
   try {
-    Haptics.selectionAsync().catch(() => {});
+    fn().catch(() => {});
   } catch {}
 }
 
+// Ruch palca po klawiszu: bez wibracji (zostawione dla zgodności z wywołaniami)
+export function tick(_enabled: boolean) {}
+
 export function good(enabled: boolean) {
   if (!enabled) return;
-  try {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  } catch {}
+  run(() => Haptics.selectionAsync());
 }
 
 export function bad(enabled: boolean) {
   if (!enabled) return;
-  try {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-  } catch {}
+  run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
 }
