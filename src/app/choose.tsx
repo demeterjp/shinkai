@@ -12,7 +12,7 @@ export default function Choose() {
   const mode = kata ? 'kata' : 'hira';
 
   // replace, żeby "← Menu" w ćwiczeniu wracało do menu, a nie do tego ekranu
-  const go = (count: '10' | 'all' | 'ext') =>
+  const go = (count: '10' | 'all') =>
     router.replace({ pathname: '/practice', params: { mode, count } } as any);
 
   return (
@@ -35,10 +35,6 @@ export default function Choose() {
           <Text style={s.btnSub}>Every character once, in a new random order</Text>
         </Pressable>
 
-        <Pressable style={s.btn} onPress={() => go('ext')}>
-          <Text style={s.btnTitle}>{kata ? 'ガ ッ ャ ー and more' : 'が っ ゃ ー and more'}</Text>
-          <Text style={s.btnSub}>Dakuten, small kana and ー: 10 random, typed with the 小゛゜ key</Text>
-        </Pressable>
       </View>
     </Screen>
   );

@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { good } from '../haptics';
@@ -58,7 +58,9 @@ export default function SettingsScreen() {
   }
 
   const open = (url: string) => Linking.openURL(url).catch(() => {});
-  const version = Constants.expoConfig?.version ?? '';
+  const version = Constants.expoConfig?.version
+    ? `${Constants.expoConfig.version}-beta.1`
+    : '0.1.0-beta.1';
 
   return (
     <Screen>

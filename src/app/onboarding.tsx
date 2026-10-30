@@ -22,7 +22,7 @@ const PAGES = [
     icon: '10',
     title: 'Ways to practice',
     body:
-      'Pick Hiragana or Katakana, then choose a round of 10 random characters, all of them in a new order, or dakuten and small kana. Review mistakes gathers the characters you got wrong in one place, so you can practice them again. Type a character correctly twice in a row and it leaves the list.',
+      'Pick Hiragana or Katakana, then choose a round of 10 random characters or all 46 in a new order. Review mistakes gathers the characters you got wrong in one place, so you can practice them again. Type a character correctly twice in a row and it leaves the list.',
   },
 ];
 

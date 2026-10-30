@@ -4,9 +4,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { FIX_STREAK, Stats, loadStats } from '../storage';
+import { ROWS, toKatakana } from '../kana';
 import { Colors, useStyles } from '../theme';
 
 const isKata = (c: string) => /[\u30A0-\u30FF]/.test(c);
+const BASIC_CHARS = new Set(ROWS.flatMap((row) => row.keys.filter((c): c is string => !!c).flatMap((c) => [c, toKatakana(c)])));
 
 function Group({ title, chars }: { title: string; chars: string[] }) {
   const { s } = useStyles(makeStyles);
@@ -36,7 +38,7 @@ export default function Mistakes() {
 
   if (!stats) return <Screen style={s.screen} />;
 
-  const bad = Object.keys(stats).filter((c) => stats[c].bad).sort();
+  const bad = Object.keys(stats).filter((c) => stats[c].bad && BASIC_CHARS.has(c)).sort();
   const hira = bad.filter((c) => !isKata(c));
   const kata = bad.filter(isKata);
 
