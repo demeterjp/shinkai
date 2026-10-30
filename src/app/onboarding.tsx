@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../Screen';
 import { setOnboarded } from '../storage';
-import { colors } from '../theme';
+import { Colors, useStyles } from '../theme';
 
 const PAGES = [
   {
@@ -19,14 +19,15 @@ const PAGES = [
       'This keyboard is built into the app. Tap a key to type its main character. To type the others, swipe from the key in the direction where the character sits: left, up, right or down. The small hints on the keys show you where. Switch them off when you want to test your memory.',
   },
     {
-    icon: 'ア',
+    icon: '10',
     title: 'Ways to practice',
     body:
-      'Pick Hiragana or Katakana, then choose a round of 10 random characters or all of them in a new order. Review mistakes gathers the characters you got wrong in one place, so you can practice them again. Type a character correctly twice in a row and it leaves the list.',
+      'Pick Hiragana or Katakana, then choose a round of 10 random characters, all of them in a new order, or dakuten and small kana. Review mistakes gathers the characters you got wrong in one place, so you can practice them again. Type a character correctly twice in a row and it leaves the list.',
   },
 ];
 
 export default function Onboarding() {
+  const { s } = useStyles(makeStyles);
   const router = useRouter();
   const [page, setPage] = useState(0);
   const last = page === PAGES.length - 1;
@@ -65,7 +66,7 @@ export default function Onboarding() {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   screen: { paddingHorizontal: 24, paddingBottom: 16 },
   top: { alignItems: 'flex-start', paddingTop: 8 },
   skip: { color: colors.muted, fontSize: 16, padding: 8 },

@@ -1,13 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { FIX_STREAK, Stats, loadStats } from '../storage';
-import { colors } from '../theme';
+import { Colors, useStyles } from '../theme';
 
 const isKata = (c: string) => /[\u30A0-\u30FF]/.test(c);
 
 function Group({ title, chars }: { title: string; chars: string[] }) {
+  const { s } = useStyles(makeStyles);
   if (chars.length === 0) return null;
   return (
     <View style={s.group}>
@@ -24,6 +26,7 @@ function Group({ title, chars }: { title: string; chars: string[] }) {
 }
 
 export default function Mistakes() {
+  const { s } = useStyles(makeStyles);
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
 
@@ -40,9 +43,7 @@ export default function Mistakes() {
   return (
     <Screen style={s.screen}>
       <View style={s.top}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={s.link}>← Menu</Text>
-        </Pressable>
+        <BackButton onPress={() => router.back()} />
       </View>
 
       {bad.length === 0 ? (
@@ -79,7 +80,7 @@ export default function Mistakes() {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors: Colors) => StyleSheet.create({
   screen: { alignItems: 'center' },
   top: { width: '100%', paddingHorizontal: 16, paddingVertical: 8 },
   link: { color: colors.accent, fontSize: 15, padding: 6 },
