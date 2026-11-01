@@ -13,16 +13,16 @@ const PAGES = [
       'Shinkai helps you get used to typing Japanese on the flick keyboard used on phones. Practice the keys again and again, until your thumb knows where every character is without you having to think about it.',
   },
   {
-    icon: '← ↑ →',
+    icon: 'か',
     title: 'Type with flicks',
     body:
       'This keyboard is built into the app. Tap a key to type its main character. To type the others, swipe from the key in the direction where the character sits: left, up, right or down. The small hints on the keys show you where. Switch them off when you want to test your memory.',
   },
-    {
-    icon: '10',
+  {
+    icon: 'ア',
     title: 'Ways to practice',
     body:
-      'Pick Hiragana or Katakana, then choose a round of 10 random characters or all 46 in a new order. Review mistakes gathers the characters you got wrong in one place, so you can practice them again. Type a character correctly twice in a row and it leaves the list.',
+            'Classic: Hiragana rounds of 10 random characters or all 46, plus Words, where you type whole words one kana at a time. Extra: Katakana, and a Blind keyboard with empty keys, so you have to remember where every character is. In rounds of 10 and in Words, the characters you struggle with come up more often. A streak counts the days you practice.',
   },
 ];
 

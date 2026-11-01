@@ -122,7 +122,7 @@ export default function SettingsScreen() {
           <Pressable style={s.row} onPress={() => open(MAIL_URL)}>
             <View style={s.rowText}>
               <Text style={s.rowTitle}>Send feedback by email</Text>
-              <Text style={s.rowSub}>No account needed</Text>
+              <Text style={s.rowSub}>Opens your email app, no GitHub needed</Text>
             </View>
             <Text style={s.chev}>›</Text>
           </Pressable>
