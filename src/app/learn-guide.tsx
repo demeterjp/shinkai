@@ -21,17 +21,71 @@ const ROMAJI: Record<string, (string | null)[]> = {
 };
 
 const NOTES: Record<string, string> = {
-  a: 'The first key holds the five vowels on their own. Their order (a, i, u, e, o) is the pattern that every other key follows.',
-  ka: 'Same directions, new consonant. From now on only the first sound changes, the vowel positions stay exactly the same.',
-  sa: 'Watch out: し is read "shi", not "si". It still sits in the "i" position, so swipe left.',
-  ta: 'ち is read "chi" and つ is read "tsu". They still sit in the "i" and "u" positions.',
-  na: 'Here na, ni, nu, ne and no live together on one key. Tap for な, then swipe left, up, right or down for the other four. Five characters, one key.',
-  ha: 'ふ is read "fu" and sits in the "u" position, so swipe up.',
-  ma: 'Nothing unusual here: ma, mi, mu, me, mo in the usual positions.',
-  ya: 'This key has only three characters: ya, yu and yo. The left and right positions are empty.',
-  ra: 'Nothing unusual here: ra, ri, ru, re, ro in the usual positions.',
-  wa: 'Three characters: わ (wa), を (wo) and ん (n). を is mostly used as a grammar particle, and ん is a standalone sound.',
+  a: 'The base key: the five vowels on their own. Tap for あ, then swipe for い, う, え, お. Every other key follows the same pattern.',
+  ka: 'Same swipes, new consonant: か き く け こ. Only the first sound changes, the vowel positions stay put.',
+  sa: 'し is read "shi", not "si". It still sits in the "i" position, so swipe left.',
+  ta: 'Two irregular sounds: ち is "chi" and つ is "tsu". They still sit in the "i" and "u" positions, so swipe left for ち and up for つ.',
+  na: 'な に ぬ ね の. Nothing irregular here, so it is a good key to check that the pattern really works.',
+  ha: 'ふ is read "fu" and sits in the "u" position, so swipe up. Also note: as a particle, は is read "wa" and へ is read "e".',
+  ma: 'ま み む め も. Regular, with no surprises.',
+  ya: 'Only three characters: や ゆ よ. There is no left or right swipe on this key, because those sounds do not exist.',
+  ra: 'ら り る れ ろ. The sound is between "r" and "l". Regular positions.',
+  wa: 'わ, を and ん. を is read "o" and is used as a grammar particle. ん is a lone sound, with no vowel. You find it by swiping up.',
 };
+
+type Intro = { title: string; cells?: Cell[]; paras: string[] };
+
+const VOWELS: Cell[] = [
+  { main: 'a', sub: '• tap' },
+  { main: 'i', sub: '← left' },
+  { main: 'u', sub: '↑ up' },
+  { main: 'e', sub: '→ right' },
+  { main: 'o', sub: '↓ down' },
+];
+
+const KA_KEY: Cell[] = [
+  { main: 'か', sub: '• ka' },
+  { main: 'き', sub: '← ki' },
+  { main: 'く', sub: '↑ ku' },
+  { main: 'け', sub: '→ ke' },
+  { main: 'こ', sub: '↓ ko' },
+];
+
+// Wstęp: jak w ogóle działa klawiatura flick
+const INTRO: Intro[] = [
+  {
+    title: 'What is a flick keyboard?',
+    cells: KA_KEY,
+    paras: [
+      'This is how almost everyone in Japan types on a phone. Instead of 46 separate keys, there are only 10. Each key stands for one group of sounds that start with the same consonant: ka, sa, ta and so on.',
+      'One key hides up to five characters. The one on the face is the first character of the group. The others are reached by flicking your finger.',
+    ],
+  },
+  {
+    title: 'How to flick',
+    cells: KA_KEY,
+    paras: [
+      'Press and hold a key. Four more characters pop up around your finger, one in each direction.',
+      'Without lifting, slide a short way toward the character you want and let go. A tap, with no sliding, types the character on the key itself.',
+      'You do not need to swipe far. A short, quick flick is enough, and it gets faster with practice.',
+    ],
+  },
+  {
+    title: 'One pattern for every key',
+    cells: VOWELS,
+    paras: [
+      'The direction always chooses the vowel: tap = a, left = i, up = u, right = e, down = o.',
+      'So to type ku, you find the ka key (the consonant) and flick up (the vowel u). To type mo, use the ma key and flick down. Learn this once and it works on every key.',
+    ],
+  },
+  {
+    title: 'How to learn it',
+    paras: [
+      'The next ten screens go through the keys one at a time. Each one shows the five directions and points out anything unusual, like the irregular sounds shi, chi, tsu and fu.',
+      'After that, use Hiragana practice with Hints on. You see the character you need in the answer, so your fingers learn where it lives. When it feels easy, switch Hints off, and later try the Blind keyboard in Extra, where the keys are empty and you have to remember everything.',
+    ],
+  },
+];
 
 type Cell = { main: string; sub: string } | null;
 
@@ -75,10 +129,11 @@ export default function Learn() {
 
   const show = (t: string) => (kata ? toKatakana(t) : t);
   const size = Math.max(54, Math.min(96, (width - 48) / 3 - 6, (height - 430) / 3 - 6));
-  const total = ROWS.length + 1; // intro + 10 keyboard keys
+  const total = INTRO.length + ROWS.length; // intro pages + 10 keyboard keys
   const last = page === total - 1;
 
-  const row = page > 0 ? ROWS[page - 1] : null;
+  const intro = page < INTRO.length ? INTRO[page] : null;
+  const row = intro ? null : ROWS[page - INTRO.length];
   const rom = row ? ROMAJI[row.id] : [];
 
   return (
@@ -88,7 +143,7 @@ export default function Learn() {
         <Text style={s.stat}>
           {page + 1} / {total}
         </Text>
-        {page > 0 ? (
+        {!intro ? (
           <Pressable onPress={() => setKata(!kata)} style={s.kataBtn}>
             <Text style={s.link}>{kata ? 'ア → あ' : 'あ → ア'}</Text>
           </Pressable>
@@ -98,29 +153,15 @@ export default function Learn() {
       </View>
 
       <ScrollView style={s.scrollView} contentContainerStyle={s.scroll}>
-        {page === 0 || !row ? (
+        {intro ? (
           <>
-            <Text style={s.title}>One key, five characters</Text>
-            <Cross
-              size={size}
-              cells={[
-                { main: 'a', sub: '• tap' },
-                { main: 'i', sub: '← left' },
-                { main: 'u', sub: '↑ up' },
-                { main: 'e', sub: '→ right' },
-                { main: 'o', sub: '↓ down' },
-              ]}
-            />
-            <Text style={s.body}>
-              The keyboard has 10 keys, one per consonant. Each key holds up to five characters
-              with that consonant: tap for the first, swipe for the others.
-            </Text>
-            <Text style={s.body}>
-              The vowel pattern is always the same: tap = a, left = i, up = u, right = e, down = o.
-              Learn it once and it works on every key.
-            </Text>
+            <Text style={s.title}>{intro.title}</Text>
+            {intro.cells && <Cross size={size} cells={intro.cells} />}
+            {intro.paras.map((t, i) => (
+              <Text key={i} style={s.body}>{t}</Text>
+            ))}
           </>
-        ) : (
+        ) : row ? (
           <>
             <Text style={s.title}>{show(row.keys[0]!)} key</Text>
             <Cross
@@ -129,7 +170,7 @@ export default function Learn() {
             />
             <Text style={s.body}>{NOTES[row.id]}</Text>
           </>
-        )}
+        ) : null}
       </ScrollView>
 
       <View style={s.nav}>

@@ -17,11 +17,11 @@ export default function LearnMenu() {
         <Text style={s.title}>Learn the keyboard</Text>
         <Pressable style={s.button} onPress={() => router.push('/learn-guide' as any)}>
           <Text style={s.buttonTitle}>Learn the keyboard</Text>
-          <Text style={s.buttonSub}>Step by step, learn how the flick keys work</Text>
+          <Text style={s.buttonSub}>10 short lessons, one key at a time</Text>
         </Pressable>
         <Pressable style={s.button} onPress={() => router.push('/your-keyboard' as any)}>
           <Text style={s.buttonTitle}>Your keyboard</Text>
-          <Text style={s.buttonSub}>See which hiragana are strong and which need practice</Text>
+          <Text style={s.buttonSub}>See which characters you know well and which need work</Text>
         </Pressable>
       </View>
     </Screen>

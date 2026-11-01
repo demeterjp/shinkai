@@ -4,6 +4,7 @@ import { Pressable, PanResponder, StyleSheet, Text, View, useWindowDimensions } 
 import { Flame } from '../Flame';
 import * as feel from '../haptics';
 import { ARROWS, DIRS, LAYOUT, ROWS, Row, toKatakana } from '../kana';
+import { WORDS, Word } from '../words';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { loadSettings, saveSettings } from '../settings';
@@ -18,7 +19,12 @@ const FIX_ROUND = 20;
 const KEY_ASPECT = 1.15;
 
 type Script = 'hira' | 'kata';
-type Item = { rowId: string; dir: number; script: Script; char: string };
+// word: gdy znak jest częścią słowa w trybie Words (pos = miejsce znaku w słowie)
+type Item = {
+  rowId: string; dir: number; script: Script; char: string;
+  word?: { kana: string; romaji: string; en: string; pos: number };
+};
+const WORDS_PER_ROUND = 6;
 type Result = { char: string; wrong: boolean; ms: number };
 
 function itemsFor(script: Script): Item[] {
@@ -38,7 +44,42 @@ function shuffle<T>(a: T[]): T[] {
   return b;
 }
 
+// Losuje słowa; te ze słabszymi znakami i niewidziane w ostatnich rundach mają większą szansę
+function pickWords(stats: Stats, recent: string[]): Word[] {
+  let pool = WORDS.filter((w) => !recent.includes(w.kana));
+  if (pool.length < WORDS_PER_ROUND) pool = [...WORDS];
+  const weight = (w: Word) => {
+    const chars = [...w.kana];
+    return chars.reduce((sum, c) => sum + weakness(stats[c]), 0) / chars.length;
+  };
+  const picked: Word[] = [];
+  while (picked.length < WORDS_PER_ROUND && pool.length > 0) {
+    const total = pool.reduce((sum, w) => sum + weight(w), 0);
+    let r = Math.random() * total;
+    let idx = 0;
+    for (; idx < pool.length - 1; idx++) {
+      r -= weight(pool[idx]);
+      if (r <= 0) break;
+    }
+    picked.push(pool.splice(idx, 1)[0]);
+  }
+  // Od krótszych do dłuższych
+  return picked.sort((a, b) => a.kana.length - b.kana.length);
+}
+
+function wordItems(words: Word[]): Item[] {
+  const byChar: Record<string, Item> = {};
+  for (const it of itemsFor('hira')) byChar[it.char] = it;
+  return words.flatMap((w) =>
+    [...w.kana].map((c, pos) => ({
+      ...byChar[c],
+      word: { kana: w.kana, romaji: w.romaji, en: w.en, pos },
+    }))
+  );
+}
+
 function buildSession(mode: string, count: string, stats: Stats, recent: string[], weakChars: string[] = []): Item[] {
+  if (mode === 'words') return wordItems(pickWords(stats, recent));
   if (mode === 'freeze') return shuffle(itemsFor('hira'));
   if (mode === 'weak') {
     const allHiragana = itemsFor('hira');
@@ -180,12 +221,13 @@ function Key({
 
 export default function Practice() {
   const { s } = useStyles(makeStyles);
-  const { mode: modeParam, count: countParam, chars: weakParam } = useLocalSearchParams<{ mode?: string; count?: string; chars?: string }>();
+  const { mode: modeParam, count: countParam, chars: weakParam, blind: blindParam } = useLocalSearchParams<{ mode?: string; count?: string; chars?: string; blind?: string }>();
+  const blind = blindParam === '1'; // tryb bez widocznych znaków na klawiszach
   const mode = modeParam ?? 'hira';
   const count = countParam ?? '10';
   const weakChars = weakParam?.split(',').filter(Boolean) ?? [];
-  const base = mode === 'freeze' ? 'Streak freeze challenge' : mode === 'weak' ? 'Weakest hiragana' : mode === 'fix' ? 'Review mistakes' : mode === 'kata' ? 'Katakana' : 'Hiragana';
-  const label = base;
+  const base = mode === 'words' ? 'Words' : mode === 'freeze' ? 'Streak freeze challenge' : mode === 'weak' ? 'Weakest hiragana' : mode === 'fix' ? 'Review mistakes' : mode === 'kata' ? 'Katakana' : 'Hiragana';
+  const label = blind ? `Blind · ${base}` : base;
 
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -231,13 +273,18 @@ export default function Practice() {
       setChallengeFailed(false);
       setFreezeEarned(null);
     }
-    const rkey = mode;
+    const rkey = blind ? `${mode}-blind` : mode;
     const recent = recentRef.current[rkey] ?? [];
     const items = buildSession(mode, count, statsRef.current, recent, weakChars);
 
     // Zapamiętaj znaki z tej rundy, żeby w następnej się nie powtarzały
     if ((mode === 'hira' || mode === 'kata') && count !== 'all') {
       recentRef.current[rkey] = [...recent, ...items.map((i) => i.char)].slice(-2 * QUICK_LENGTH);
+      saveRecent(recentRef.current);
+    }
+    if (mode === 'words') {
+      const used = items.filter((i) => i.word && i.word.pos === 0).map((i) => i.word!.kana);
+      recentRef.current[rkey] = [...recent, ...used].slice(-2 * WORDS_PER_ROUND);
       saveRecent(recentRef.current);
     }
 
@@ -494,9 +541,13 @@ export default function Practice() {
   }
 
   const item = session[index];
+  const hideKana = () => '';
   const show = (t: string) => (item.script === 'kata' ? toKatakana(t) : t);
+  const totalWords = session.filter((i) => i.word && i.word.pos === 0).length;
+  const wordNo = session.slice(0, index + 1).filter((i) => i.word && i.word.pos === 0).length;
   const progress = mode === 'freeze'
     ? `${index + 1} / 46 · ${challengeSeconds}s`
+    : mode === 'words' ? `${wordNo} / ${totalWords}`
     : mode === 'fix' ? `${session.length - index} left` : `${index + 1} / ${session.length}`;
 
   return (
@@ -504,22 +555,53 @@ export default function Practice() {
       <View style={s.top}>
         <BackButton onPress={() => router.back()} />
         <Text style={s.stat}>{progress}</Text>
-        <Pressable
-          onPress={toggleHints}
-          style={[s.hintBtn, hints && s.hintBtnOn]}
-          hitSlop={8}
-        >
-          <Text style={[s.hintBtnText, hints && s.hintBtnTextOn]}>Hints</Text>
-        </Pressable>
+        {blind ? (
+          <View style={{ width: 74 }} />
+        ) : (
+          <Pressable
+            onPress={toggleHints}
+            style={[s.hintBtn, hints && s.hintBtnOn]}
+            hitSlop={8}
+          >
+            <Text style={[s.hintBtnText, hints && s.hintBtnTextOn]}>Hints</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={s.center}>
         <Text style={s.label}>
           {label} · Streak {streak}
         </Text>
-        <Text style={[s.target, feedback === 'ok' && s.ok, feedback === 'bad' && s.bad]}>
-          {item.char}
-        </Text>
+        {item.word ? (
+          <>
+            <Text
+              style={[
+                s.wordRow,
+                { fontSize: Math.min(76, Math.floor((width - 56) / [...item.word.kana].length)) },
+              ]}
+            >
+              {[...item.word.kana].map((c, i) => (
+                <Text
+                  key={i}
+                  style={[
+                    i < item.word!.pos && s.ok,
+                    i === item.word!.pos && (feedback === 'bad' ? s.bad : s.wordCur),
+                    i === item.word!.pos && feedback === 'ok' && s.ok,
+                    i > item.word!.pos && s.wordLater,
+                  ]}
+                >
+                  {c}
+                </Text>
+              ))}
+            </Text>
+            <Text style={s.wordMeaning}>{item.word.en}</Text>
+            <Text style={s.wordRomaji}>{hints ? item.word.romaji : ' '}</Text>
+          </>
+        ) : (
+          <Text style={[s.target, feedback === 'ok' && s.ok, feedback === 'bad' && s.bad]}>
+            {item.char}
+          </Text>
+        )}
         <View style={s.msgBox}>
           {feedback === 'bad' ? <Text style={s.msg}>{badMsg}</Text> : null}
         </View>
@@ -536,8 +618,8 @@ export default function Practice() {
                   <Key
                     key={row.id}
                     row={row}
-                    show={show}
-                    hints={hints}
+                    show={blind ? hideKana : show}
+                    hints={hints && !blind}
                     highlight={feedback === 'bad' && row.id === item.rowId}
                     pressedDir={pressed && pressed.rowId === row.id ? pressed.dir : null}
                     keyW={keyW}
@@ -577,6 +659,11 @@ const makeStyles = (colors: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   label: { color: colors.muted, fontSize: 14, marginBottom: 4 },
   target: { color: colors.text, fontSize: 120 },
+  wordRow: { color: colors.text, textAlign: 'center', letterSpacing: 2 },
+  wordCur: { color: colors.text, textDecorationLine: 'underline' },
+  wordLater: { color: colors.muted },
+  wordMeaning: { color: colors.textSoft, fontSize: 20, marginTop: 8 },
+  wordRomaji: { color: colors.muted, fontSize: 16, marginTop: 4 },
   ok: { color: colors.ok },
   bad: { color: colors.bad },
   msgBox: { height: 56, justifyContent: 'center', alignItems: 'center', marginVertical: 4 },
