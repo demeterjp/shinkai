@@ -1,13 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ROWS, toKatakana } from './kana';
 
 // seen = ile razy znak się pojawił, err = ostatnie błędy (0 do 1), ms = typowy czas odpowiedzi
 // bad = znak jest na liście błędów, fix = ile razy z rzędu wpisano go poprawnie od ostatniego błędu
-export type Stat = { seen: number; err: number; ms: number; bad?: boolean; fix?: number };
+export type Stat = {
+  seen: number;
+  err: number;
+  ms: number;
+  bad?: boolean;
+  fix?: number;
+  correctCount?: number;
+  wrongCount?: number;
+};
 export type Stats = Record<string, Stat>;
 
 const STATS_KEY = 'shinkai.stats.v1';
 const ONBOARD_KEY = 'shinkai.onboarded.v1';
 const RECENT_KEY = 'shinkai.recent.v1';
+const BASIC_CHARS = new Set(ROWS.flatMap((row) => row.keys.filter((c): c is string => !!c).flatMap((c) => [c, toKatakana(c)])));
 
 // Ile razy z rzędu trzeba wpisać znak poprawnie, żeby zniknął z listy błędów
 export const FIX_STREAK = 2;
@@ -58,7 +68,7 @@ export async function setOnboarded() {
 }
 
 export function countBad(stats: Stats): number {
-  return Object.values(stats).filter((s) => s.bad).length;
+  return Object.entries(stats).filter(([char, stat]) => stat.bad && BASIC_CHARS.has(char)).length;
 }
 
 // Nowsze odpowiedzi liczą się bardziej, więc znak, który opanujesz, szybko przestaje być "słaby"
@@ -69,6 +79,13 @@ export function updateStat(stats: Stats, key: string, wrong: boolean, ms: number
     prev && prev.seen > 0
       ? { seen: prev.seen + 1, err: prev.err * 0.7 + (wrong ? 0.3 : 0), ms: prev.ms * 0.7 + t * 0.3 }
       : { seen: 1, err: wrong ? 1 : 0, ms: t };
+
+  // Keep exact totals for the keyboard overview. Older saved stats only have a
+  // smoothed error rate, so seed their counters with the closest available estimate.
+  const oldCorrect = prev?.correctCount ?? (prev ? Math.round(prev.seen * (1 - prev.err)) : 0);
+  const oldWrong = prev?.wrongCount ?? (prev ? Math.max(0, prev.seen - oldCorrect) : 0);
+  const correctCount = oldCorrect + (wrong ? 0 : 1);
+  const wrongCount = oldWrong + (wrong ? 1 : 0);
 
   // Lista błędów: pomyłka dodaje znak, poprawne odpowiedzi z rzędu usuwają go
   let bad = prev?.bad ?? false;
@@ -83,7 +100,7 @@ export function updateStat(stats: Stats, key: string, wrong: boolean, ms: number
       fix = 0;
     }
   }
-  stats[key] = { ...base, bad, fix };
+  stats[key] = { ...base, bad, fix, correctCount, wrongCount };
 }
 
 // Im wyższa liczba, tym częściej znak wraca. Nieznane znaki mają średnio wysoką wagę.

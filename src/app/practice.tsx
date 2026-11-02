@@ -1,16 +1,17 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, PanResponder, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Flame } from '../Flame';
 import * as feel from '../haptics';
-import { ARROWS, DIRS, EXT_CHARS, LAYOUT, MOD_LABEL, ROWS, ROWS_EXT, Row, toKatakana } from '../kana';
+import { ARROWS, DIRS, LAYOUT, ROWS, Row, toKatakana } from '../kana';
+import { WORDS, Word } from '../words';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
-import { loadSettings, saveSettings, seenExtIntro, setSeenExtIntro } from '../settings';
+import { loadSettings, saveSettings } from '../settings';
 import {
   Stats, countBad, loadRecent, loadStats, saveRecent, saveStats, updateStat, weakness,
 } from '../storage';
-import { recordPractice } from '../streak';
+import { FREEZE_CHALLENGE_SECONDS, earnFreezeFromChallenge, recordPractice } from '../streak';
 import { Colors, useStyles } from '../theme';
 
 const QUICK_LENGTH = 10;
@@ -18,8 +19,12 @@ const FIX_ROUND = 20;
 const KEY_ASPECT = 1.15;
 
 type Script = 'hira' | 'kata';
-// cycle: kolejne znaki po dotknięciu klawisza 小゛゜ (tylko dakuten, małe kana itd.)
-type Item = { rowId: string; dir: number; script: Script; char: string; cycle?: string[] };
+// word: gdy znak jest częścią słowa w trybie Words (pos = miejsce znaku w słowie)
+type Item = {
+  rowId: string; dir: number; script: Script; char: string;
+  word?: { kana: string; romaji: string; en: string; pos: number };
+};
+const WORDS_PER_ROUND = 6;
 type Result = { char: string; wrong: boolean; ms: number };
 
 function itemsFor(script: Script): Item[] {
@@ -28,18 +33,6 @@ function itemsFor(script: Script): Item[] {
       k ? [{ rowId: r.id, dir, script, char: script === 'kata' ? toKatakana(k) : k }] : []
     )
   );
-}
-
-const conv = (script: Script, c: string) => (script === 'kata' ? toKatakana(c) : c);
-
-function extItemsFor(script: Script): Item[] {
-  return EXT_CHARS.map((e) => ({
-    rowId: e.rowId,
-    dir: e.dir,
-    script,
-    char: conv(script, e.char),
-    cycle: e.cycle ? e.cycle.map((c) => conv(script, c)) : undefined,
-  }));
 }
 
 function shuffle<T>(a: T[]): T[] {
@@ -51,11 +44,55 @@ function shuffle<T>(a: T[]): T[] {
   return b;
 }
 
-function buildSession(mode: string, count: string, stats: Stats, recent: string[]): Item[] {
+// Losuje słowa; te ze słabszymi znakami i niewidziane w ostatnich rundach mają większą szansę
+function pickWords(stats: Stats, recent: string[]): Word[] {
+  let pool = WORDS.filter((w) => !recent.includes(w.kana));
+  if (pool.length < WORDS_PER_ROUND) pool = [...WORDS];
+  const weight = (w: Word) => {
+    const chars = [...w.kana];
+    return chars.reduce((sum, c) => sum + weakness(stats[c]), 0) / chars.length;
+  };
+  const picked: Word[] = [];
+  while (picked.length < WORDS_PER_ROUND && pool.length > 0) {
+    const total = pool.reduce((sum, w) => sum + weight(w), 0);
+    let r = Math.random() * total;
+    let idx = 0;
+    for (; idx < pool.length - 1; idx++) {
+      r -= weight(pool[idx]);
+      if (r <= 0) break;
+    }
+    picked.push(pool.splice(idx, 1)[0]);
+  }
+  // Od krótszych do dłuższych
+  return picked.sort((a, b) => a.kana.length - b.kana.length);
+}
+
+function wordItems(words: Word[]): Item[] {
+  const byChar: Record<string, Item> = {};
+  for (const it of itemsFor('hira')) byChar[it.char] = it;
+  return words.flatMap((w) =>
+    [...w.kana].map((c, pos) => ({
+      ...byChar[c],
+      word: { kana: w.kana, romaji: w.romaji, en: w.en, pos },
+    }))
+  );
+}
+
+function buildSession(mode: string, count: string, stats: Stats, recent: string[], weakChars: string[] = []): Item[] {
+  if (mode === 'words') return wordItems(pickWords(stats, recent));
+  if (mode === 'freeze') return shuffle(itemsFor('hira'));
+  if (mode === 'weak') {
+    const allHiragana = itemsFor('hira');
+    const selected = weakChars.length
+      ? weakChars.map((char) => allHiragana.find((item) => item.char === char)).filter((item): item is Item => !!item)
+      : [...allHiragana].sort((a, b) => weakness(stats[b.char]) - weakness(stats[a.char])).slice(0, QUICK_LENGTH);
+    return shuffle(selected).slice(0, QUICK_LENGTH);
+  }
+
   // Poprawianie błędów: znaki z listy błędów (oba pisma razem)
   if (mode === 'fix') {
     const every = [
-      ...itemsFor('hira'), ...itemsFor('kata'), ...extItemsFor('hira'), ...extItemsFor('kata'),
+      ...itemsFor('hira'), ...itemsFor('kata'),
     ];
     const seen = new Set<string>();
     const bad = every.filter((i) => {
@@ -67,7 +104,7 @@ function buildSession(mode: string, count: string, stats: Stats, recent: string[
   }
 
   const script: Script = mode === 'kata' ? 'kata' : 'hira';
-  const all = count === 'ext' ? extItemsFor(script) : itemsFor(script);
+  const all = itemsFor(script);
 
   // Wszystkie znaki, za każdym razem w nowej kolejności
   if (count === 'all') return shuffle(all);
@@ -184,11 +221,13 @@ function Key({
 
 export default function Practice() {
   const { s } = useStyles(makeStyles);
-  const { mode: modeParam, count: countParam } = useLocalSearchParams<{ mode?: string; count?: string }>();
+  const { mode: modeParam, count: countParam, chars: weakParam, blind: blindParam } = useLocalSearchParams<{ mode?: string; count?: string; chars?: string; blind?: string }>();
+  const blind = blindParam === '1'; // tryb bez widocznych znaków na klawiszach
   const mode = modeParam ?? 'hira';
   const count = countParam ?? '10';
-  const base = mode === 'fix' ? 'Review mistakes' : mode === 'kata' ? 'Katakana' : 'Hiragana';
-  const label = count === 'ext' && mode !== 'fix' ? `${base} · Dakuten & small` : base;
+  const weakChars = weakParam?.split(',').filter(Boolean) ?? [];
+  const base = mode === 'words' ? 'Words' : mode === 'freeze' ? 'Streak freeze challenge' : mode === 'weak' ? 'Weakest hiragana' : mode === 'fix' ? 'Review mistakes' : mode === 'kata' ? 'Katakana' : 'Hiragana';
+  const label = blind ? `Blind · ${base}` : base;
 
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -205,7 +244,6 @@ export default function Practice() {
   const hapticsRef = useRef(true);
   const lastKeyRef = useRef('');
   const recordedRef = useRef(false);
-  const typedRef = useRef<number | null>(null);
 
   const [session, setSession] = useState<Item[] | null>(null);
   const [index, setIndex] = useState(0);
@@ -215,10 +253,11 @@ export default function Practice() {
   const [days, setDays] = useState<{ count: number; increased: boolean } | null>(null);
   const [feedback, setFeedback] = useState<'ok' | 'bad' | null>(null);
   const [pressed, setPressed] = useState<{ rowId: string; dir: number } | null>(null);
-  const [typed, setTypedState] = useState<number | null>(null); // krok cyklu 小゛゜ (null = jeszcze nic nie wpisano)
   const [badMsg, setBadMsg] = useState('');
-  const [modDown, setModDown] = useState(false);
-  const [intro, setIntro] = useState(false);
+  const [challengeSeconds, setChallengeSeconds] = useState(FREEZE_CHALLENGE_SECONDS);
+  const [challengeFailed, setChallengeFailed] = useState(false);
+  const [freezeEarned, setFreezeEarned] = useState<boolean | null>(null);
+  const challengeDeadlineRef = useRef(0);
 
   // Podpowiedzi włączasz/wyłączasz w trakcie gry; ostatni wybór zostaje na następne rundy
   function toggleHints() {
@@ -227,19 +266,25 @@ export default function Practice() {
     loadSettings().then((cfg) => saveSettings({ ...cfg, hints: next }));
   }
 
-  function setTyped(v: number | null) {
-    typedRef.current = v;
-    setTypedState(v);
-  }
-
   function start() {
-    const rkey = count === 'ext' ? `${mode}-ext` : mode;
+    if (mode === 'freeze') {
+      challengeDeadlineRef.current = Date.now() + FREEZE_CHALLENGE_SECONDS * 1000;
+      setChallengeSeconds(FREEZE_CHALLENGE_SECONDS);
+      setChallengeFailed(false);
+      setFreezeEarned(null);
+    }
+    const rkey = blind ? `${mode}-blind` : mode;
     const recent = recentRef.current[rkey] ?? [];
-    const items = buildSession(mode, count, statsRef.current, recent);
+    const items = buildSession(mode, count, statsRef.current, recent, weakChars);
 
     // Zapamiętaj znaki z tej rundy, żeby w następnej się nie powtarzały
     if ((mode === 'hira' || mode === 'kata') && count !== 'all') {
       recentRef.current[rkey] = [...recent, ...items.map((i) => i.char)].slice(-2 * QUICK_LENGTH);
+      saveRecent(recentRef.current);
+    }
+    if (mode === 'words') {
+      const used = items.filter((i) => i.word && i.word.pos === 0).map((i) => i.word!.kana);
+      recentRef.current[rkey] = [...recent, ...used].slice(-2 * WORDS_PER_ROUND);
       saveRecent(recentRef.current);
     }
 
@@ -248,22 +293,32 @@ export default function Practice() {
     setResults([]);
     setStreak(0);
     setFeedback(null);
-    setTyped(null);
     setBadMsg('');
     setDays(null);
     recordedRef.current = false;
   }
 
   useEffect(() => {
-    Promise.all([loadStats(), loadRecent(), loadSettings(), seenExtIntro()]).then(([st, rc, cfg, seen]) => {
+    Promise.all([loadStats(), loadRecent(), loadSettings()]).then(([st, rc, cfg]) => {
       statsRef.current = st;
       recentRef.current = rc;
       hapticsRef.current = cfg.haptics;
       setHints(cfg.hints);
-      setIntro(count === 'ext' && mode !== 'fix' && !seen);
       start();
     });
-  }, [mode, count]);
+  }, [mode, count, weakParam]);
+
+  useEffect(() => {
+    if (mode !== 'freeze' || !session || challengeFailed || index >= session.length) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((challengeDeadlineRef.current - Date.now()) / 1000));
+      setChallengeSeconds(remaining);
+      if (remaining === 0 && !(index === session.length - 1 && feedback === 'ok')) setChallengeFailed(true);
+    };
+    tick();
+    const timer = setInterval(tick, 150);
+    return () => clearInterval(timer);
+  }, [mode, session, index, challengeFailed, feedback]);
 
   // Nowy znak = start stopera
   useEffect(() => {
@@ -276,7 +331,10 @@ export default function Practice() {
     if (!session || session.length === 0 || index < session.length) return;
     if (recordedRef.current) return;
     recordedRef.current = true;
-    recordPractice().then((r) => setDays({ count: r.count, increased: r.increased }));
+    recordPractice().then(async (r) => {
+      setDays({ count: r.count, increased: r.increased });
+      if (mode === 'freeze') setFreezeEarned(await earnFreezeFromChallenge());
+    });
   }, [session, index]);
 
   function onPress(rowId: string, dir: number | null) {
@@ -321,15 +379,8 @@ export default function Practice() {
     setFeedback('ok');
     setTimeout(() => {
       setFeedback(null);
-      setTyped(null);
       setIndex((i) => i + 1);
     }, 250);
-  }
-
-  // Podpowiedź po błędzie przy znakach z klawiszem 小゛゜
-  function baseHint(item: Item) {
-    const first = item.cycle ? item.cycle[0] : item.char;
-    return `Start with ${conv(item.script, first)}: ${DIRS[item.dir]} ${ARROWS[item.dir]}`;
   }
 
   function onInput(rowId: string, dir: number) {
@@ -338,80 +389,29 @@ export default function Practice() {
     if (!item) return;
     const hit = rowId === item.rowId && dir === item.dir;
 
-    // Zwykły znak (także ー): jeden flick
-    if (!item.cycle) {
-      if (hit) succeed(item);
-      else fail(`Here: ${DIRS[item.dir]} ${ARROWS[item.dir]}`);
-      return;
-    }
-
-    // Znak z klawiszem 小゛゜: najpierw znak bazowy
-    if (typedRef.current !== null) {
-      fail(`Tap ${MOD_LABEL} to change it`);
-    } else if (hit) {
-      setTyped(0);
-      setBadMsg('');
-      setFeedback(null);
-    } else {
-      fail(baseHint(item));
-    }
-  }
-
-  function onModifier() {
-    if (!session || feedback === 'ok') return;
-    const item = session[index];
-    if (!item) return;
-    const cur = typedRef.current;
-    if (!item.cycle) {
-      fail(`Here: ${DIRS[item.dir]} ${ARROWS[item.dir]}`);
-      return;
-    }
-    if (cur === null) {
-      fail(baseHint(item));
-      return;
-    }
-    const next = (cur + 1) % item.cycle.length;
-    setTyped(next);
-    setFeedback(null);
-    setBadMsg('');
-    if (item.cycle[next] === item.char) succeed(item);
+    if (hit) succeed(item);
+    else fail(`Here: ${DIRS[item.dir]} ${ARROWS[item.dir]}`);
   }
 
   // Ładowanie
   if (!session) return <Screen style={s.screen} />;
 
-  // Jednorazowe wyjaśnienie klawisza 小゛゜
-  if (intro) {
+  if (mode === 'freeze' && challengeFailed) {
     return (
       <Screen style={s.screen}>
         <View style={s.summary}>
-          <Text style={s.introKey}>{MOD_LABEL}</Text>
-          <Text style={s.sumTitle}>Dakuten, small kana and ー</Text>
-          <Text style={s.sumLine}>
-            These are typed in two steps. First flick the base character, then tap the {MOD_LABEL}
-            key until it changes.
-          </Text>
-          <Text style={s.introEx}>は → 小゛゜ → ば → 小゛゜ → ぱ</Text>
-          <Text style={s.sumLine}>
-            The big character is your target. The one you have typed so far appears below it.
-            ー is a plain flick right on the わ key.
-          </Text>
-          <Pressable
-            style={s.sumBtn}
-            onPress={() => {
-              setSeenExtIntro();
-              setIntro(false);
-            }}
-          >
-            <Text style={s.sumBtnText}>Got it</Text>
+          <Text style={s.sumTitle}>Time is up</Text>
+          <Text style={s.sumLine}>You reached {index} of 46 hiragana. Finish all of them within 80 seconds to earn a freeze.</Text>
+          <Pressable style={s.sumBtn} onPress={start}><Text style={s.sumBtnText}>Try again</Text></Pressable>
+          <Pressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
+            <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Back to streak</Text>
           </Pressable>
         </View>
       </Screen>
     );
   }
 
-  const extMode = session.some((i) => !!i.cycle) || count === 'ext';
-  const boardRows = extMode ? ROWS_EXT : ROWS;
+  const boardRows = ROWS;
 
   const dayBadge = days ? (
     <View style={s.dayBadge}>
@@ -469,6 +469,29 @@ export default function Practice() {
       );
     }
 
+    if (mode === 'freeze') {
+      return (
+        <Screen style={s.screen}>
+          <View style={s.summary}>
+            {dayBadge}
+            <Text style={s.sumTitle}>{freezeEarned === true ? 'Freeze restored' : 'Challenge complete'}</Text>
+            <Text style={s.sumLine}>
+              {freezeEarned === true
+                ? 'Your streak freeze is ready (1/1).'
+                : freezeEarned === false
+                  ? 'Your freeze inventory is already full (1/1).'
+                  : 'Saving your freeze reward…'}
+            </Text>
+            <Text style={s.sumLine}>46 hiragana in 80 seconds</Text>
+            <Pressable style={s.sumBtn} onPress={start}><Text style={s.sumBtnText}>Challenge again</Text></Pressable>
+            <Pressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
+              <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Back to streak</Text>
+            </Pressable>
+          </View>
+        </Screen>
+      );
+    }
+
     const firstTry = results.filter((r) => !r.wrong).length;
     const avg = results.length ? results.reduce((sum, r) => sum + r.ms, 0) / results.length / 1000 : 0;
     const hardest = [...results]
@@ -518,71 +541,86 @@ export default function Practice() {
   }
 
   const item = session[index];
+  const hideKana = () => '';
   const show = (t: string) => (item.script === 'kata' ? toKatakana(t) : t);
-  const progress = mode === 'fix' ? `${session.length - index} left` : `${index + 1} / ${session.length}`;
+  const totalWords = session.filter((i) => i.word && i.word.pos === 0).length;
+  const wordNo = session.slice(0, index + 1).filter((i) => i.word && i.word.pos === 0).length;
+  const progress = mode === 'freeze'
+    ? `${index + 1} / 46 · ${challengeSeconds}s`
+    : mode === 'words' ? `${wordNo} / ${totalWords}`
+    : mode === 'fix' ? `${session.length - index} left` : `${index + 1} / ${session.length}`;
 
   return (
     <Screen style={s.screen}>
       <View style={s.top}>
         <BackButton onPress={() => router.back()} />
         <Text style={s.stat}>{progress}</Text>
-        <Pressable
-          onPress={toggleHints}
-          style={[s.hintBtn, hints && s.hintBtnOn]}
-          hitSlop={8}
-        >
-          <Text style={[s.hintBtnText, hints && s.hintBtnTextOn]}>Hints</Text>
-        </Pressable>
+        {blind ? (
+          <View style={{ width: 74 }} />
+        ) : (
+          <Pressable
+            onPress={toggleHints}
+            style={[s.hintBtn, hints && s.hintBtnOn]}
+            hitSlop={8}
+          >
+            <Text style={[s.hintBtnText, hints && s.hintBtnTextOn]}>Hints</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={s.center}>
         <Text style={s.label}>
           {label} · Streak {streak}
         </Text>
-        <Text style={[s.target, feedback === 'ok' && s.ok, feedback === 'bad' && s.bad]}>
-          {item.char}
-        </Text>
+        {item.word ? (
+          <>
+            <Text
+              style={[
+                s.wordRow,
+                { fontSize: Math.min(76, Math.floor((width - 56) / [...item.word.kana].length)) },
+              ]}
+            >
+              {[...item.word.kana].map((c, i) => (
+                <Text
+                  key={i}
+                  style={[
+                    i < item.word!.pos && s.ok,
+                    i === item.word!.pos && (feedback === 'bad' ? s.bad : s.wordCur),
+                    i === item.word!.pos && feedback === 'ok' && s.ok,
+                    i > item.word!.pos && s.wordLater,
+                  ]}
+                >
+                  {c}
+                </Text>
+              ))}
+            </Text>
+            <Text style={s.wordMeaning}>{item.word.en}</Text>
+            <Text style={s.wordRomaji}>{hints ? item.word.romaji : ' '}</Text>
+          </>
+        ) : (
+          <Text style={[s.target, feedback === 'ok' && s.ok, feedback === 'bad' && s.bad]}>
+            {item.char}
+          </Text>
+        )}
         <View style={s.msgBox}>
-          {feedback === 'bad' ? (
-            <Text style={s.msg}>{badMsg}</Text>
-          ) : typed !== null && item.cycle ? (
-            <Text style={s.typed}>{item.cycle[typed]}</Text>
-          ) : null}
+          {feedback === 'bad' ? <Text style={s.msg}>{badMsg}</Text> : null}
         </View>
       </View>
 
       <View style={[s.board, { width: boardWidth }]}>
         {LAYOUT.map((line, i) => {
-          const cells = extMode && i === 3 ? ['__mod', 'wa', null] : line;
-          const lineActive = cells.some((id) => id !== null && id === pressed?.rowId);
+          const lineActive = line.some((id) => id !== null && id === pressed?.rowId);
           return (
             <View key={i} style={[s.line, lineActive && s.lineActive]}>
-              {cells.map((id, j) => {
-                if (id === '__mod') {
-                  return (
-                    <Pressable
-                      key="mod"
-                      style={[
-                        s.key, s.keyMod,
-                        feedback === 'bad' && typed !== null && s.keyHi,
-                        modDown && s.keyModDown,
-                      ]}
-                      onPressIn={() => setModDown(true)}
-                      onPressOut={() => setModDown(false)}
-                      onPress={onModifier}
-                    >
-                      <Text style={s.keyModText}>{MOD_LABEL}</Text>
-                    </Pressable>
-                  );
-                }
+              {line.map((id, j) => {
                 const row = boardRows.find((r) => r.id === id);
                 return row ? (
                   <Key
                     key={row.id}
                     row={row}
-                    show={show}
-                    hints={hints}
-                    highlight={feedback === 'bad' && row.id === item.rowId && (typed === null || !item.cycle)}
+                    show={blind ? hideKana : show}
+                    hints={hints && !blind}
+                    highlight={feedback === 'bad' && row.id === item.rowId}
                     pressedDir={pressed && pressed.rowId === row.id ? pressed.dir : null}
                     keyW={keyW}
                     keyH={keyH}
@@ -621,16 +659,15 @@ const makeStyles = (colors: Colors) => StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   label: { color: colors.muted, fontSize: 14, marginBottom: 4 },
   target: { color: colors.text, fontSize: 120 },
+  wordRow: { color: colors.text, textAlign: 'center', letterSpacing: 2 },
+  wordCur: { color: colors.text, textDecorationLine: 'underline' },
+  wordLater: { color: colors.muted },
+  wordMeaning: { color: colors.textSoft, fontSize: 20, marginTop: 8 },
+  wordRomaji: { color: colors.muted, fontSize: 16, marginTop: 4 },
   ok: { color: colors.ok },
   bad: { color: colors.bad },
   msgBox: { height: 56, justifyContent: 'center', alignItems: 'center', marginVertical: 4 },
   msg: { color: colors.warn, fontSize: 18, textAlign: 'center' },
-  typed: { color: colors.accent, fontSize: 44 },
-  keyMod: { backgroundColor: colors.cell },
-  keyModDown: { backgroundColor: colors.cellOn },
-  keyModText: { color: colors.text, fontSize: 22 },
-  introKey: { color: colors.accent, fontSize: 56, marginBottom: 12 },
-  introEx: { color: colors.text, fontSize: 22, marginVertical: 14, textAlign: 'center' },
   board: { paddingBottom: 12 },
   line: { flexDirection: 'row', zIndex: 0 },
   lineActive: { zIndex: 10 },

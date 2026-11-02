@@ -1,0 +1,33 @@
+name: Release APK
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    if: github.event.release.target_commitish == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - run: npx expo prebuild --platform android --no-install
+      # ponytail: signed with Expo's template debug keystore; add a real keystore via secrets before Play Store
+      - run: ./gradlew assembleRelease
+        working-directory: android
+      - run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "shinkai-${{ github.event.release.tag_name }}.apk"
+          gh release upload "${{ github.event.release.tag_name }}" "shinkai-${{ github.event.release.tag_name }}.apk"
+        env:
+          GH_TOKEN: ${{ github.token }}

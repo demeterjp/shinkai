@@ -37,18 +37,3 @@ export async function resetProgress() {
   } catch {}
 }
 
-const EXT_INTRO_KEY = 'shinkai.extintro.v1';
-
-export async function seenExtIntro(): Promise<boolean> {
-  try {
-    return (await AsyncStorage.getItem(EXT_INTRO_KEY)) === '1';
-  } catch {
-    return true;
-  }
-}
-
-export async function setSeenExtIntro() {
-  try {
-    await AsyncStorage.setItem(EXT_INTRO_KEY, '1');
-  } catch {}
-}
