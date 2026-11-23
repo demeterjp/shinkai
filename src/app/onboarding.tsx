@@ -24,6 +24,12 @@ const PAGES = [
     body:
             'Classic: Hiragana rounds of 10 random characters or all 46, plus Words, where you type whole words one kana at a time. Extra: Katakana, and a Blind keyboard with empty keys, so you have to remember where every character is. In rounds of 10 and in Words, the characters you struggle with come up more often. A streak counts the days you practice.',
   },
+  {
+    icon: '火',
+    title: 'Streak and freeze',
+    body:
+      'Practice a round every day to keep your streak going. A streak freeze protects one missed day: if you skip exactly one day, it is used automatically and your streak continues. If you miss two or more days in a row, a freeze cannot save it and the streak starts again from 1. A used freeze comes back after 48 hours, or sooner if you pass the 80-second challenge on the streak screen.',
+  },
 ];
 
 export default function Onboarding() {

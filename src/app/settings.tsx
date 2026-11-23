@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Pressable, Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { BackButton } from '../BackButton';
@@ -57,6 +58,8 @@ export default function SettingsScreen() {
     );
   }
 
+  // Strony www otwieramy w przeglądarce w aplikacji, żeby "wstecz" wracało do Shinkai
+  const openWeb = (url: string) => WebBrowser.openBrowserAsync(url).catch(() => {});
   const open = (url: string) => Linking.openURL(url).catch(() => {});
   const version = Constants.expoConfig?.version
     ? `${Constants.expoConfig.version}-beta.1`
@@ -111,7 +114,7 @@ export default function SettingsScreen() {
 
         <Text style={s.section}>Help</Text>
         <View style={s.card}>
-          <Pressable style={s.row} onPress={() => open(ISSUES_URL)}>
+          <Pressable style={s.row} onPress={() => openWeb(ISSUES_URL)}>
             <View style={s.rowText}>
               <Text style={s.rowTitle}>Report on GitHub</Text>
               <Text style={s.rowSub}>Open a new issue (needs a free GitHub account)</Text>
@@ -134,7 +137,7 @@ export default function SettingsScreen() {
             <Text style={s.chev}>›</Text>
           </Pressable>
           <View style={s.sep} />
-          <Pressable style={s.row} onPress={() => open(PRIVACY_URL)}>
+          <Pressable style={s.row} onPress={() => openWeb(PRIVACY_URL)}>
             <View style={s.rowText}>
               <Text style={s.rowTitle}>Privacy policy</Text>
             </View>

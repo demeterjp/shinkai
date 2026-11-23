@@ -75,8 +75,15 @@ async function load(): Promise<StreakData> {
   return d;
 }
 
-export type StreakInfo = { count: number; best: number; doneToday: boolean };
+export type StreakEnded = { count: number; missed: number };
+export type StreakInfo = { count: number; best: number; doneToday: boolean; ended?: StreakEnded };
 export type FreezeInfo = { available: 0 | 1; refillAt: number | null };
+
+function daysBetween(a: string, b: string): number {
+  const [ya, ma, da] = a.split('-').map(Number);
+  const [yb, mb, db] = b.split('-').map(Number);
+  return Math.round((Date.UTC(yb, mb - 1, db) - Date.UTC(ya, ma - 1, da)) / 86400000);
+}
 
 export async function getStreak(): Promise<StreakInfo> {
   const d = await load();
@@ -84,7 +91,12 @@ export async function getStreak(): Promise<StreakInfo> {
   const yesterday = dayOffset(new Date(), -1);
   if (d.last === today) return { count: d.count, best: d.best, doneToday: true };
   if (d.last === yesterday) return { count: d.count, best: d.best, doneToday: false };
-  return { count: 0, best: d.best, doneToday: false };
+  // Streak przerwany: zapamiętujemy, ile trwał i ile dni pominięto, żeby pokazać wyjaśnienie
+  const ended =
+    d.count > 0 && d.last
+      ? { count: d.count, missed: Math.max(1, daysBetween(d.last, today) - 1) }
+      : undefined;
+  return { count: 0, best: d.best, doneToday: false, ended };
 }
 
 export async function getFreezeInfo(): Promise<FreezeInfo> {

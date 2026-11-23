@@ -99,6 +99,16 @@ export default function StreakScreen() {
         <Text style={s.count}>{info.count}</Text>
         <Text style={s.countLabel}>{info.count === 1 ? 'day streak' : 'days streak'}</Text>
         <Text style={s.best}>Best: {Math.max(info.best, info.count)}</Text>
+        {info.ended && (
+          <View style={s.endedBox}>
+            <Text style={s.endedTitle}>Your streak of {info.ended.count} {info.ended.count === 1 ? 'day' : 'days'} ended</Text>
+            <Text style={s.endedText}>
+              {info.ended.missed === 1
+                ? 'You missed a day and your freeze was not available. A used freeze comes back after 48 hours.'
+                : `You missed ${info.ended.missed} days in a row. A freeze covers only one missed day, so it was not used.`}
+            </Text>
+          </View>
+        )}
 
         <View style={s.todayBox}>
           <Text
@@ -235,6 +245,9 @@ export default function StreakScreen() {
                 <Text style={s.modalClose}>×</Text>
               </Pressable>
             </View>
+            <Text style={s.modalHelp}>
+              A freeze protects one missed day. Skip exactly one day and it is used automatically. Miss two or more days in a row and the streak resets; the freeze stays unused.
+            </Text>
             <Text style={s.modalInventory}>Available: {freeze.available}/1</Text>
 
             <View style={s.optionCard}>
@@ -299,6 +312,10 @@ const makeStyles = (colors: Colors) =>
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     modalTitle: { color: colors.text, fontSize: 23, fontWeight: '800' },
     modalClose: { color: colors.muted, fontSize: 30, lineHeight: 32, paddingHorizontal: 4 },
+    endedBox: { backgroundColor: colors.key, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14, marginTop: 12, maxWidth: 360 },
+    endedTitle: { color: colors.text, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+    endedText: { color: colors.textSoft, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: 4 },
+    modalHelp: { color: colors.textSoft, fontSize: 13, lineHeight: 18, marginBottom: 10 },
     modalInventory: { color: colors.accent, fontSize: 14, fontWeight: '700', marginTop: 4, marginBottom: 14 },
     optionCard: { backgroundColor: colors.key, borderRadius: 15, padding: 14, marginTop: 8 },
     optionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
