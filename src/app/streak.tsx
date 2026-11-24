@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { Flame } from '../Flame';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
@@ -89,9 +90,9 @@ export default function StreakScreen() {
     <Screen style={s.screen}>
       <View style={s.top}>
         <BackButton onPress={() => router.back()} />
-        <Pressable style={s.freezeBadge} onPress={() => { setClockNow(Date.now()); setFreezeModal(true); }}>
+        <TapPressable style={s.freezeBadge} onPress={() => { setClockNow(Date.now()); setFreezeModal(true); }}>
           <Text style={s.freezeBadgeText}>Freeze {freeze.available}/1</Text>
-        </Pressable>
+        </TapPressable>
       </View>
 
       <ScrollView style={s.scroll} contentContainerStyle={s.content}>
@@ -99,16 +100,6 @@ export default function StreakScreen() {
         <Text style={s.count}>{info.count}</Text>
         <Text style={s.countLabel}>{info.count === 1 ? 'day streak' : 'days streak'}</Text>
         <Text style={s.best}>Best: {Math.max(info.best, info.count)}</Text>
-        {info.ended && (
-          <View style={s.endedBox}>
-            <Text style={s.endedTitle}>Your streak of {info.ended.count} {info.ended.count === 1 ? 'day' : 'days'} ended</Text>
-            <Text style={s.endedText}>
-              {info.ended.missed === 1
-                ? 'You missed a day and your freeze was not available. A used freeze comes back after 48 hours.'
-                : `You missed ${info.ended.missed} days in a row. A freeze covers only one missed day, so it was not used.`}
-            </Text>
-          </View>
-        )}
 
         <View style={s.todayBox}>
           <Text
@@ -131,9 +122,9 @@ export default function StreakScreen() {
 
         <View style={s.seg}>
           {(['week', 'month'] as const).map((v) => (
-            <Pressable key={v} style={[s.segBtn, view === v && s.segBtnOn]} onPress={() => setView(v)}>
+            <TapPressable key={v} style={[s.segBtn, view === v && s.segBtnOn]} onPress={() => setView(v)}>
               <Text style={[s.segText, view === v && s.segTextOn]}>{v === 'week' ? 'Week' : 'Month'}</Text>
-            </Pressable>
+            </TapPressable>
           ))}
         </View>
 
@@ -175,15 +166,15 @@ export default function StreakScreen() {
         ) : (
           <View style={s.month}>
             <View style={s.monthHead}>
-              <Pressable onPress={() => setOffset(offset - 1)} hitSlop={10}>
+              <TapPressable onPress={() => setOffset(offset - 1)} hitSlop={10}>
                 <Text style={s.arrow}>‹</Text>
-              </Pressable>
+              </TapPressable>
               <Text style={s.monthTitle}>
                 {MONTHS[first.getMonth()]} {first.getFullYear()}
               </Text>
-              <Pressable onPress={() => canNext && setOffset(offset + 1)} hitSlop={10}>
+              <TapPressable onPress={() => canNext && setOffset(offset + 1)} hitSlop={10}>
                 <Text style={[s.arrow, !canNext && s.arrowOff]}>›</Text>
-              </Pressable>
+              </TapPressable>
             </View>
 
             <View style={s.calRow}>
@@ -237,23 +228,20 @@ export default function StreakScreen() {
 
       <Modal visible={freezeModal} transparent animationType="fade" onRequestClose={() => setFreezeModal(false)}>
         <View style={s.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setFreezeModal(false)} />
+          <TapPressable style={StyleSheet.absoluteFill} onPress={() => setFreezeModal(false)} />
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Streak freeze</Text>
-              <Pressable onPress={() => setFreezeModal(false)} hitSlop={10}>
+              <TapPressable onPress={() => setFreezeModal(false)} hitSlop={10}>
                 <Text style={s.modalClose}>×</Text>
-              </Pressable>
+              </TapPressable>
             </View>
-            <Text style={s.modalHelp}>
-              A freeze protects one missed day. Skip exactly one day and it is used automatically. Miss two or more days in a row and the streak resets; the freeze stays unused.
-            </Text>
             <Text style={s.modalInventory}>Available: {freeze.available}/1</Text>
 
             <View style={s.optionCard}>
               <Text style={s.optionTitle}>Option 1 · Quick challenge</Text>
               <Text style={s.optionText}>Type all 46 hiragana correctly within 80 seconds to refill your freeze.</Text>
-              <Pressable
+              <TapPressable
                 disabled={freeze.available === 1}
                 style={[s.challengeButton, freeze.available === 1 && s.challengeButtonLocked]}
                 onPress={() => {
@@ -264,7 +252,7 @@ export default function StreakScreen() {
                 <Text style={[s.challengeButtonText, freeze.available === 1 && s.challengeButtonTextLocked]}>
                   {freeze.available === 1 ? 'Locked · inventory full' : 'Start challenge'}
                 </Text>
-              </Pressable>
+              </TapPressable>
             </View>
 
             <View style={s.optionCard}>
@@ -312,10 +300,6 @@ const makeStyles = (colors: Colors) =>
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     modalTitle: { color: colors.text, fontSize: 23, fontWeight: '800' },
     modalClose: { color: colors.muted, fontSize: 30, lineHeight: 32, paddingHorizontal: 4 },
-    endedBox: { backgroundColor: colors.key, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14, marginTop: 12, maxWidth: 360 },
-    endedTitle: { color: colors.text, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-    endedText: { color: colors.textSoft, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: 4 },
-    modalHelp: { color: colors.textSoft, fontSize: 13, lineHeight: 18, marginBottom: 10 },
     modalInventory: { color: colors.accent, fontSize: 14, fontWeight: '700', marginTop: 4, marginBottom: 14 },
     optionCard: { backgroundColor: colors.key, borderRadius: 15, padding: 14, marginTop: 8 },
     optionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },

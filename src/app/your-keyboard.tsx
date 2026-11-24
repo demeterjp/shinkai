@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { BackButton } from '../BackButton';
 import { LAYOUT, ROWS, Row } from '../kana';
 import { Stats, Stat, loadStats } from '../storage';

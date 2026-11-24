@@ -1,11 +1,12 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { Pressable, Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { good } from '../haptics';
+import { play, setSoundsEnabled } from '../sounds';
 import { Settings, ThemeId, loadSettings, resetProgress, saveSettings } from '../settings';
 import { Colors, THEMES, THEME_ORDER, useStyles, useTheme } from '../theme';
 
@@ -40,6 +41,12 @@ export default function SettingsScreen() {
     good(on); // krótka próbka
   }
 
+  function toggleSounds(on: boolean) {
+    change({ sounds: on });
+    setSoundsEnabled(on);
+    if (on) play('correct', true); // krótka próbka
+  }
+
   function confirmReset() {
     Alert.alert(
       'Reset progress?',
@@ -58,12 +65,8 @@ export default function SettingsScreen() {
     );
   }
 
-  // Strony www otwieramy w przeglądarce w aplikacji, żeby "wstecz" wracało do Shinkai
-  const openWeb = (url: string) => WebBrowser.openBrowserAsync(url).catch(() => {});
   const open = (url: string) => Linking.openURL(url).catch(() => {});
-  const version = Constants.expoConfig?.version
-    ? `${Constants.expoConfig.version}-beta.1`
-    : '0.1.0-beta.1';
+const version = Constants.expoConfig?.version ?? '0.1.1';
 
   return (
     <Screen>
@@ -82,7 +85,7 @@ export default function SettingsScreen() {
             return (
               <View key={id}>
                 {i > 0 && <View style={s.sep} />}
-                <Pressable style={s.row} onPress={() => pickTheme(id)}>
+                <TapPressable style={s.row} onPress={() => pickTheme(id)}>
                   <View style={[s.swatch, { backgroundColor: t.colors.bgTop, borderColor: t.colors.accent }]}>
                     <View style={[s.swatchDot, { backgroundColor: t.colors.accent }]} />
                   </View>
@@ -90,7 +93,7 @@ export default function SettingsScreen() {
                     <Text style={s.rowTitle}>{t.name}</Text>
                   </View>
                   {on ? <Text style={s.check}>✓</Text> : null}
-                </Pressable>
+                </TapPressable>
               </View>
             );
           })}
@@ -112,46 +115,62 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <Text style={s.section}>Sound</Text>
+        <View style={s.card}>
+          <View style={s.row}>
+            <View style={s.rowText}>
+              <Text style={s.rowTitle}>Sounds</Text>
+              <Text style={s.rowSub}>Button taps and answer feedback</Text>
+            </View>
+            <Switch
+              value={settings?.sounds ?? true}
+              onValueChange={toggleSounds}
+              trackColor={{ false: colors.cell, true: colors.accent }}
+              thumbColor={colors.dark ? colors.text : '#ffffff'}
+            />
+          </View>
+        </View>
+
         <Text style={s.section}>Help</Text>
         <View style={s.card}>
-          <Pressable style={s.row} onPress={() => openWeb(ISSUES_URL)}>
+          <TapPressable style={s.row} onPress={() => open(ISSUES_URL)}>
             <View style={s.rowText}>
               <Text style={s.rowTitle}>Report on GitHub</Text>
               <Text style={s.rowSub}>Open a new issue (needs a free GitHub account)</Text>
             </View>
             <Text style={s.chev}>›</Text>
-          </Pressable>
+          </TapPressable>
           <View style={s.sep} />
-          <Pressable style={s.row} onPress={() => open(MAIL_URL)}>
+          <TapPressable style={s.row} onPress={() => open(MAIL_URL)}>
             <View style={s.rowText}>
               <Text style={s.rowTitle}>Send feedback by email</Text>
               <Text style={s.rowSub}>Opens your email app, no GitHub needed</Text>
             </View>
             <Text style={s.chev}>›</Text>
-          </Pressable>
+          </TapPressable>
           <View style={s.sep} />
-          <Pressable style={s.row} onPress={() => router.push('/onboarding' as any)}>
+          <TapPressable style={s.row} onPress={() => router.push('/onboarding' as any)}>
             <View style={s.rowText}>
               <Text style={s.rowTitle}>How it works</Text>
             </View>
             <Text style={s.chev}>›</Text>
-          </Pressable>
+          </TapPressable>
           <View style={s.sep} />
-          <Pressable style={s.row} onPress={() => openWeb(PRIVACY_URL)}>
+          <TapPressable style={s.row} onPress={() => open(PRIVACY_URL)}>
             <View style={s.rowText}>
               <Text style={s.rowTitle}>Privacy policy</Text>
             </View>
             <Text style={s.chev}>›</Text>
-          </Pressable>
+          </TapPressable>
         </View>
 
         <View style={s.card}>
-          <Pressable style={s.row} onPress={confirmReset}>
+          <TapPressable style={s.row} onPress={confirmReset}>
             <View style={s.rowText}>
               <Text style={[s.rowTitle, { color: colors.bad }]}>Reset progress</Text>
               <Text style={s.rowSub}>Clear statistics, mistakes and streak</Text>
             </View>
-          </Pressable>
+          </TapPressable>
         </View>
 
         {version ? <Text style={s.version}>Shinkai {version}</Text> : null}

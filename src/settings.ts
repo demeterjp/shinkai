@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemeId = 'deepsea' | 'dark' | 'light' | 'sakura' | 'forest';
-export type Settings = { haptics: boolean; hints: boolean; theme: ThemeId };
+export type Settings = { haptics: boolean; sounds: boolean; hints: boolean; theme: ThemeId };
 
 const SETTINGS_KEY = 'shinkai.settings.v1';
-const DEFAULTS: Settings = { haptics: true, hints: true, theme: 'deepsea' };
+const DEFAULTS: Settings = { haptics: true, sounds: true, hints: true, theme: 'deepsea' };
 const THEME_IDS: ThemeId[] = ['deepsea', 'dark', 'light', 'sakura', 'forest'];
 
 export async function loadSettings(): Promise<Settings> {
@@ -16,6 +16,7 @@ export async function loadSettings(): Promise<Settings> {
     const haptics = !(d.haptics === false || d.haptics === 'off');
     return {
       haptics,
+      sounds: typeof d.sounds === 'boolean' ? d.sounds : DEFAULTS.sounds,
       hints: typeof d.hints === 'boolean' ? d.hints : DEFAULTS.hints,
       theme: THEME_IDS.includes(d.theme) ? d.theme : DEFAULTS.theme,
     };

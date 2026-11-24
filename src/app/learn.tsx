@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { Colors, useStyles } from '../theme';
@@ -15,14 +16,14 @@ export default function LearnMenu() {
       </View>
       <View style={s.content}>
         <Text style={s.title}>Learn the keyboard</Text>
-        <Pressable style={s.button} onPress={() => router.push('/learn-guide' as any)}>
+        <TapPressable style={s.button} onPress={() => router.push('/learn-guide' as any)}>
           <Text style={s.buttonTitle}>Learn the keyboard</Text>
           <Text style={s.buttonSub}>10 short lessons, one key at a time</Text>
-        </Pressable>
-        <Pressable style={s.button} onPress={() => router.push('/your-keyboard' as any)}>
+        </TapPressable>
+        <TapPressable style={s.button} onPress={() => router.push('/your-keyboard' as any)}>
           <Text style={s.buttonTitle}>Your keyboard</Text>
           <Text style={s.buttonSub}>See which characters you know well and which need work</Text>
-        </Pressable>
+        </TapPressable>
       </View>
     </Screen>
   );

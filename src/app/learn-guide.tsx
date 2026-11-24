@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { ARROWS, ROWS, toKatakana } from '../kana';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
@@ -144,9 +145,9 @@ export default function Learn() {
           {page + 1} / {total}
         </Text>
         {!intro ? (
-          <Pressable onPress={() => setKata(!kata)} style={s.kataBtn}>
+          <TapPressable onPress={() => setKata(!kata)} style={s.kataBtn}>
             <Text style={s.link}>{kata ? 'ア → あ' : 'あ → ア'}</Text>
-          </Pressable>
+          </TapPressable>
         ) : (
           <View style={s.kataBtn} />
         )}
@@ -175,15 +176,15 @@ export default function Learn() {
 
       <View style={s.nav}>
         {page > 0 ? (
-          <Pressable style={[s.navBtn, s.navBtnAlt]} onPress={() => setPage(page - 1)}>
+          <TapPressable style={[s.navBtn, s.navBtnAlt]} onPress={() => setPage(page - 1)}>
             <Text style={[s.navText, s.navTextAlt]}>Back</Text>
-          </Pressable>
+          </TapPressable>
         ) : (
           <View style={{ flex: 1 }} />
         )}
-        <Pressable style={s.navBtn} onPress={() => (last ? router.back() : setPage(page + 1))}>
+        <TapPressable style={s.navBtn} onPress={() => (last ? router.back() : setPage(page + 1))}>
           <Text style={s.navText}>{last ? 'Done' : 'Next'}</Text>
-        </Pressable>
+        </TapPressable>
       </View>
     </Screen>
   );
