@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { FIX_STREAK, Stats, loadStats } from '../storage';
@@ -69,12 +70,12 @@ export default function Mistakes() {
           </ScrollView>
 
           <View style={s.nav}>
-            <Pressable
+            <TapPressable
               style={s.btn}
               onPress={() => router.replace({ pathname: '/practice', params: { mode: 'fix' } } as any)}
             >
               <Text style={s.btnText}>Fix them</Text>
-            </Pressable>
+            </TapPressable>
           </View>
         </>
       )}

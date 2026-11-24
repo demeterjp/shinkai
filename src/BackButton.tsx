@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+import { TapPressable } from './TapPressable';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from './theme';
 
@@ -6,7 +7,7 @@ import { useTheme } from './theme';
 export function BackButton({ onPress, label = 'Menu' }: { onPress: () => void; label?: string }) {
   const { colors } = useTheme();
   return (
-    <Pressable onPress={onPress} hitSlop={10} style={s.row}>
+    <TapPressable onPress={onPress} hitSlop={10} style={s.row}>
       <Svg width={20} height={20} viewBox="0 0 24 24">
         <Path
           d="M15 4.5 L7.5 12 L15 19.5"
@@ -18,7 +19,7 @@ export function BackButton({ onPress, label = 'Menu' }: { onPress: () => void; l
         />
       </Svg>
       <Text style={[s.text, { color: colors.accent }]}>{label}</Text>
-    </Pressable>
+    </TapPressable>
   );
 }
 

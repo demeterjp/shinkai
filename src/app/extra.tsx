@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { Colors, useStyles } from '../theme';
@@ -15,18 +16,18 @@ export default function ExtraMenu() {
       </View>
       <View style={s.content}>
         <Text style={s.title}>Extra</Text>
-        <Pressable style={s.button} onPress={() => router.push({ pathname: '/choose', params: { script: 'kata' } } as any)}>
+        <TapPressable style={s.button} onPress={() => router.push({ pathname: '/choose', params: { script: 'kata' } } as any)}>
           <Text style={s.kana}>ア</Text>
           <Text style={s.label}>Katakana</Text>
-        </Pressable>
-        <Pressable
+        </TapPressable>
+        <TapPressable
           style={[s.button, s.buttonGap]}
           onPress={() => router.push({ pathname: '/choose', params: { script: 'hira', blind: '1' } } as any)}
         >
           <Text style={s.kana}>?</Text>
           <Text style={s.label}>Blind keyboard</Text>
           <Text style={s.sub}>The keys are empty. Type from memory.</Text>
-        </Pressable>
+        </TapPressable>
       </View>
     </Screen>
   );

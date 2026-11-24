@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { BackButton } from '../BackButton';
 import { ROWS } from '../kana';
 import { Screen } from '../Screen';
@@ -61,9 +62,9 @@ export default function WeakestPreview() {
       </ScrollView>
 
       <View style={s.bottom}>
-        <Pressable style={[s.button, !stats && s.buttonDisabled]} disabled={!stats} onPress={start}>
+        <TapPressable style={[s.button, !stats && s.buttonDisabled]} disabled={!stats} onPress={start}>
           <Text style={s.buttonText}>Practice</Text>
-        </Pressable>
+        </TapPressable>
       </View>
     </Screen>
   );

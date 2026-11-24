@@ -1,8 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, PanResponder, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { PanResponder, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { Flame } from '../Flame';
 import * as feel from '../haptics';
+import { play } from '../sounds';
 import { ARROWS, DIRS, LAYOUT, ROWS, Row, toKatakana } from '../kana';
 import { WORDS, Word } from '../words';
 import { BackButton } from '../BackButton';
@@ -331,6 +333,7 @@ export default function Practice() {
     if (!session || session.length === 0 || index < session.length) return;
     if (recordedRef.current) return;
     recordedRef.current = true;
+    play('done');
     recordPractice().then(async (r) => {
       setDays({ count: r.count, increased: r.increased });
       if (mode === 'freeze') setFreezeEarned(await earnFreezeFromChallenge());
@@ -357,6 +360,7 @@ export default function Practice() {
     wrongRef.current = true;
     setStreak(0);
     feel.bad(hapticsRef.current);
+    play('wrong');
     setBadMsg(msg);
     setFeedback('bad');
   }
@@ -375,6 +379,7 @@ export default function Practice() {
     setResults((prev) => [...prev, { char: item.char, wrong, ms: Math.min(ms, 10000) }]);
     if (!wrong) setStreak((n) => n + 1);
     feel.good(hapticsRef.current);
+    play('correct');
     setBadMsg('');
     setFeedback('ok');
     setTimeout(() => {
@@ -402,10 +407,10 @@ export default function Practice() {
         <View style={s.summary}>
           <Text style={s.sumTitle}>Time is up</Text>
           <Text style={s.sumLine}>You reached {index} of 46 hiragana. Finish all of them within 80 seconds to earn a freeze.</Text>
-          <Pressable style={s.sumBtn} onPress={start}><Text style={s.sumBtnText}>Try again</Text></Pressable>
-          <Pressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
+          <TapPressable style={s.sumBtn} onPress={start}><Text style={s.sumBtnText}>Try again</Text></TapPressable>
+          <TapPressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
             <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Back to streak</Text>
-          </Pressable>
+          </TapPressable>
         </View>
       </Screen>
     );
@@ -430,9 +435,9 @@ export default function Practice() {
         <View style={s.summary}>
           <Text style={s.sumTitle}>Nothing to fix</Text>
           <Text style={s.sumLine}>You have no open mistakes right now.</Text>
-          <Pressable style={s.sumBtn} onPress={() => router.back()}>
+          <TapPressable style={s.sumBtn} onPress={() => router.back()}>
             <Text style={s.sumBtnText}>Back to menu</Text>
-          </Pressable>
+          </TapPressable>
         </View>
       </Screen>
     );
@@ -454,16 +459,16 @@ export default function Practice() {
                 : `${badLeft} ${badLeft === 1 ? 'character' : 'characters'} still to fix`}
             </Text>
             {badLeft > 0 && (
-              <Pressable style={s.sumBtn} onPress={start}>
+              <TapPressable style={s.sumBtn} onPress={start}>
                 <Text style={s.sumBtnText}>Keep fixing</Text>
-              </Pressable>
+              </TapPressable>
             )}
-            <Pressable
+            <TapPressable
               style={[s.sumBtn, badLeft > 0 && s.sumBtnAlt]}
               onPress={() => router.back()}
             >
               <Text style={[s.sumBtnText, badLeft > 0 && s.sumBtnTextAlt]}>Menu</Text>
-            </Pressable>
+            </TapPressable>
           </View>
         </Screen>
       );
@@ -483,10 +488,10 @@ export default function Practice() {
                   : 'Saving your freeze reward…'}
             </Text>
             <Text style={s.sumLine}>46 hiragana in 80 seconds</Text>
-            <Pressable style={s.sumBtn} onPress={start}><Text style={s.sumBtnText}>Challenge again</Text></Pressable>
-            <Pressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
+            <TapPressable style={s.sumBtn} onPress={start}><Text style={s.sumBtnText}>Challenge again</Text></TapPressable>
+            <TapPressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
               <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Back to streak</Text>
-            </Pressable>
+            </TapPressable>
           </View>
         </Screen>
       );
@@ -521,20 +526,20 @@ export default function Practice() {
             </>
           )}
 
-          <Pressable style={s.sumBtn} onPress={start}>
+          <TapPressable style={s.sumBtn} onPress={start}>
             <Text style={s.sumBtnText}>Practice again</Text>
-          </Pressable>
+          </TapPressable>
           {badLeft > 0 && (
-            <Pressable
+            <TapPressable
               style={[s.sumBtn, s.sumBtnAlt]}
               onPress={() => router.replace('/mistakes' as any)}
             >
               <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Review mistakes ({badLeft})</Text>
-            </Pressable>
+            </TapPressable>
           )}
-          <Pressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
+          <TapPressable style={[s.sumBtn, s.sumBtnAlt]} onPress={() => router.back()}>
             <Text style={[s.sumBtnText, s.sumBtnTextAlt]}>Menu</Text>
-          </Pressable>
+          </TapPressable>
         </View>
       </Screen>
     );
@@ -558,13 +563,13 @@ export default function Practice() {
         {blind ? (
           <View style={{ width: 74 }} />
         ) : (
-          <Pressable
+          <TapPressable
             onPress={toggleHints}
             style={[s.hintBtn, hints && s.hintBtnOn]}
             hitSlop={8}
           >
             <Text style={[s.hintBtnText, hints && s.hintBtnTextOn]}>Hints</Text>
-          </Pressable>
+          </TapPressable>
         )}
       </View>
 

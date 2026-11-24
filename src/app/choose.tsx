@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { BackButton } from '../BackButton';
 import { Screen } from '../Screen';
 import { Colors, useStyles } from '../theme';
@@ -36,30 +37,30 @@ export default function Choose() {
           <>
             <View style={s.seg}>
               {(['hira', 'kata'] as const).map((v) => (
-                <Pressable key={v} style={[s.segBtn, pick === v && s.segBtnOn]} onPress={() => setPick(v)}>
+                <TapPressable key={v} style={[s.segBtn, pick === v && s.segBtnOn]} onPress={() => setPick(v)}>
                   <Text style={[s.segText, pick === v && s.segTextOn]}>{v === 'hira' ? 'あ  Hiragana' : 'ア  Katakana'}</Text>
-                </Pressable>
+                </TapPressable>
               ))}
             </View>
             <Text style={s.note}>The keys are empty. You have to remember where every character is.</Text>
           </>
         )}
 
-        <Pressable style={s.btn} onPress={() => go('10')}>
+        <TapPressable style={s.btn} onPress={() => go('10')}>
           <Text style={s.btnTitle}>10 random characters</Text>
           <Text style={s.btnSub}>10 characters, different ones each time</Text>
-        </Pressable>
+        </TapPressable>
 
-        <Pressable style={s.btn} onPress={() => go('all')}>
+        <TapPressable style={s.btn} onPress={() => go('all')}>
           <Text style={s.btnTitle}>All 46 characters</Text>
           <Text style={s.btnSub}>Every character once, in a new random order</Text>
-        </Pressable>
+        </TapPressable>
 
         {!blind && !kata && (
-          <Pressable style={s.btn} onPress={goWords}>
+          <TapPressable style={s.btn} onPress={goWords}>
             <Text style={s.btnTitle}>Words</Text>
             <Text style={s.btnSub}>Type whole words, one kana at a time</Text>
-          </Pressable>
+          </TapPressable>
         )}
       </View>
     </Screen>

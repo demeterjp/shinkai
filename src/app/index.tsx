@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { Flame } from '../Flame';
 import { Screen } from '../Screen';
@@ -88,12 +89,12 @@ export default function Menu() {
   return (
     <Screen>
       <View style={s.bar}>
-        <Pressable style={s.chip} onPress={() => router.push('/streak' as any)} hitSlop={6}>
+        <TapPressable style={s.chip} onPress={() => router.push('/streak' as any)} hitSlop={6}>
           <Flame size={26} active={streak.doneToday} />
           <Text style={[s.chipNum, !streak.doneToday && s.chipDim]}>{streak.count}</Text>
-        </Pressable>
+        </TapPressable>
 
-        <Pressable style={s.chip} onPress={() => router.push('/streak' as any)} hitSlop={6}>
+        <TapPressable style={s.chip} onPress={() => router.push('/streak' as any)} hitSlop={6}>
           <Text
             style={[
               s.dayKanji,
@@ -104,13 +105,13 @@ export default function Menu() {
           >
             {today.kanji}
           </Text>
-        </Pressable>
+        </TapPressable>
 
         <View style={{ flex: 1 }} />
 
-        <Pressable onPress={() => router.push('/settings' as any)} hitSlop={10}>
+        <TapPressable onPress={() => router.push('/settings' as any)} hitSlop={10}>
           <SettingsIcon color={colors.muted} background={colors.bgTop} />
-        </Pressable>
+        </TapPressable>
       </View>
 
       <View style={s.screen}>
@@ -121,25 +122,25 @@ export default function Menu() {
           </View>
 
           <View style={s.grid}>
-          <Pressable style={s.tile} onPress={() => router.push('/learn' as any)}>
+          <TapPressable style={s.tile} onPress={() => router.push('/learn' as any)}>
             <FlickIcon color={colors.accent} />
             <Text style={s.tileLabel}>Learn the keyboard</Text>
-          </Pressable>
+          </TapPressable>
 
-          <Pressable style={s.tile} onPress={() => choose('hira')}>
+          <TapPressable style={s.tile} onPress={() => choose('hira')}>
             <Text style={s.kana}>あ</Text>
             <Text style={s.tileLabel}>Classic</Text>
-          </Pressable>
+          </TapPressable>
 
-          <Pressable style={s.tile} onPress={() => router.push('/extra' as any)}>
+          <TapPressable style={s.tile} onPress={() => router.push('/extra' as any)}>
             <Text style={s.kana}>ア</Text>
             <Text style={s.tileLabel}>Extra</Text>
-          </Pressable>
+          </TapPressable>
 
-          <Pressable style={s.tile} onPress={() => router.push('/weakest' as any)}>
+          <TapPressable style={s.tile} onPress={() => router.push('/weakest' as any)}>
             <WeakestIcon color={colors.textSoft} accent={colors.accent} />
             <Text style={s.tileLabel}>Practice weakest</Text>
-          </Pressable>
+          </TapPressable>
           </View>
         </View>
       </View>

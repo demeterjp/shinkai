@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { TapPressable } from '../TapPressable';
 import { Screen } from '../Screen';
 import { setOnboarded } from '../storage';
 import { Colors, useStyles } from '../theme';
@@ -42,9 +43,9 @@ export default function Onboarding() {
   return (
     <Screen style={s.screen}>
       <View style={s.top}>
-        <Pressable onPress={finish}>
+        <TapPressable onPress={finish}>
           <Text style={s.skip}>Skip</Text>
-        </Pressable>
+        </TapPressable>
       </View>
 
       <View style={s.content}>
@@ -59,9 +60,9 @@ export default function Onboarding() {
         ))}
       </View>
 
-      <Pressable style={s.btn} onPress={() => (last ? finish() : setPage(page + 1))}>
+      <TapPressable style={s.btn} onPress={() => (last ? finish() : setPage(page + 1))}>
         <Text style={s.btnText}>{last ? 'Finish' : 'Next'}</Text>
-      </Pressable>
+      </TapPressable>
     </Screen>
   );
 }
